@@ -1,0 +1,241 @@
+
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
+using System.Text;
+using Microsoft.CodeAnalysis;
+using Mono.Cecil;
+
+namespace Dune;
+
+public sealed class DuneTypeSignature : IDuneType, IDuneMemberSignature, IDuneGenericSignature, IEquatable<DuneTypeSignature> {
+
+    internal static Type GetGenericTypeDefinition(Type type) {
+        if (type.IsGenericType && !type.IsGenericTypeDefinition)
+            type = type.GetGenericTypeDefinition();
+        return type;
+    }
+
+    public static DuneTypeSignature FromType<T>(DuneReflectionContext? ctx = null)
+#if NET
+        where T : allows ref struct
+#endif
+        => FromType(typeof(T), ctx);
+
+    public static DuneTypeSignature FromType(Type type, DuneReflectionContext? ctx = null) {
+        InternalUtils.ThrowIfArgumentNull(type);
+
+        ctx ??= new();
+        if (ctx.TryGetTypeSignature(type, out var cached))
+            return cached;
+
+        type = GetGenericTypeDefinition(type);
+
+        return ctx.PutTypeSignature(type, new(
+            DuneAssemblyReference.FromAssembly(type.Assembly, ctx),
+            type.Namespace, type.Name,
+            type.GetGenericArguments().Select(arg => arg.Name),
+            type.DeclaringType != null ? FromType(type.DeclaringType, ctx) : null
+        ));
+    }
+
+    public static DuneTypeSignature FromTypeDefinition(CecilTypeDefinition typeDefinition, DuneCecilContext? ctx = null) {
+        InternalUtils.ThrowIfArgumentNull(typeDefinition);
+
+        ctx ??= new();
+        if (ctx.TryGetTypeSignature(typeDefinition, out var cached))
+            return cached;
+
+        DuneTypeSignature? declaringType = typeDefinition.DeclaringType != null ? FromTypeDefinition(typeDefinition.DeclaringType) : null;
+
+        return ctx.PutTypeSignature(typeDefinition, new(
+            DuneAssemblyReference.FromAssemblyDefinition(typeDefinition.Module.Assembly, ctx),
+
+            // In Cecil, the "Namespace" is only present in the base declaring type, so if this is a nested
+            //  type we grab the namespace from our parent type.
+            declaringType != null ? declaringType.Namespace : typeDefinition.Namespace,
+
+            typeDefinition.Name,
+            typeDefinition.GenericParameters.Select(param => param.Name),
+            declaringType
+        ));
+    }
+
+    public static DuneTypeSignature FromSymbol(INamedTypeSymbol typeSymbol, DuneRoslynContext? ctx = null) {
+        InternalUtils.ThrowIfArgumentNull(typeSymbol);
+
+        ctx ??= new();
+        if (ctx.TryGetTypeSignature(typeSymbol, out var cached))
+            return cached;
+
+        DuneTypeSignature? containingType = null;
+        IEnumerable<string> typeParameters = typeSymbol.TypeParameters.Select(param => param.Name);
+        if (typeSymbol.ContainingType != null) {
+            containingType = FromSymbol(typeSymbol.ContainingType, ctx);
+            // We flatten the generic parameters, so we go from
+            // class Outer<T0> { class Inner<T1> { } }
+            // To
+            // class Outer<T0> { class Inner<T0, T1> { } }
+            typeParameters = containingType.GenericParameterNames.Concat(typeParameters);
+        }
+
+        return ctx.PutTypeSignature(typeSymbol, new(
+            DuneAssemblyReference.FromSymbol(typeSymbol.ContainingAssembly, ctx),
+            typeSymbol.ContainingNamespace.MetadataName, typeSymbol.MetadataName,
+            typeParameters, containingType
+        ));
+
+    }
+
+    public static DuneTypeSignature Void { get; } = FromType(typeof(void));
+    public static DuneTypeSignature Object { get; } = FromType<object>();
+
+    public DuneAssemblyReference Assembly { get; }
+
+    public string? Namespace { get; }
+    public string Name => GetName();
+    public string RawName { get; }
+
+    public DuneTypeSignature? DeclaringType { get; }
+
+    public ImmutableArray<string> GenericParameterNames { get; }
+    public bool HasGenericParameters => !GenericParameterNames.IsEmpty;
+    public int GenericParameterCount => GenericParameterNames.Length;
+
+    public bool IsVoid => this == Void;
+
+    IDuneType? IDuneMember.DeclaringType => DeclaringType;
+
+    internal DuneTypeSignature(DuneAssemblyReference assembly, string? @namespace, string name, IEnumerable<string> genericParamNames, DuneTypeSignature? declaringType) {
+        Assembly = assembly;
+        Namespace = string.IsNullOrEmpty(@namespace) ? null : @namespace;
+        RawName = name;
+
+        GenericParameterNames = [.. genericParamNames];
+        DeclaringType = declaringType;
+
+        InternalUtils.Assert(DeclaringType == null || Namespace == DeclaringType.Namespace);
+        InternalUtils.Assert(DeclaringType == null || Assembly == DeclaringType.Assembly);
+    }
+
+    public bool IsDeclaringTypeOf(DuneTypeSignature other) {
+        DuneTypeSignature? check = other.DeclaringType;
+        while (check != null) {
+            if (Equals(check)) return true;
+            check = check.DeclaringType;
+        }
+        return false;
+    }
+
+
+    public DuneTypeSignatureReference CreateReference()
+        => CreateReference([.. Enumerable.Repeat<DuneTypeReference>(DuneUnknownTypeReference.Instance, GenericParameterCount)]);
+
+    public DuneTypeSignatureReference CreateReferenceWithParent(DuneTypeSignatureReference parentType)
+        => CreateReference([
+                .. parentType.GenericArguments,
+                .. Enumerable.Repeat<DuneTypeReference>(DuneUnknownTypeReference.Instance, GenericParameterCount - parentType.GenericArguments.Length)
+            ]);
+
+    public DuneTypeSignatureReference CreateReferenceWithParent(DuneTypeSignatureReference parentType, params ImmutableArray<DuneTypeReference> genericArgs)
+        => CreateReference([.. parentType.GenericArguments, .. genericArgs]);
+
+    public DuneTypeSignatureReference CreateReference(params ImmutableArray<DuneTypeReference> genericArgs) {
+        if (genericArgs.Length != GenericParameterCount)
+            throw new ArgumentException($"Wrong number of generic arguments. Expected {GenericParameterCount} got {genericArgs.Length}.");
+
+        return new(this, genericArgs);
+    }
+
+    private static readonly DuneAssemblyReference _SystemAssembly = DuneAssemblyReference.FromAssembly(typeof(object).Assembly);
+
+    private static readonly ImmutableDictionary<(string? Namespace, string Name), string> _SystemNames = new Dictionary<(string?, string), string>{
+        {(typeof(bool).Namespace, typeof(bool).Name), "bool"},
+        {(typeof(byte).Namespace, typeof(byte).Name), "byte"},
+        {(typeof(sbyte).Namespace, typeof(sbyte).Name), "sbyte"},
+        {(typeof(short).Namespace, typeof(short).Name), "short"},
+        {(typeof(ushort).Namespace, typeof(ushort).Name), "ushort"},
+        {(typeof(int).Namespace, typeof(int).Name), "int"},
+        {(typeof(uint).Namespace, typeof(uint).Name), "uint"},
+        {(typeof(long).Namespace, typeof(long).Name), "long"},
+        {(typeof(ulong).Namespace, typeof(ulong).Name), "ulong"},
+
+        {(typeof(char).Namespace, typeof(char).Name), "char"},
+        {(typeof(float).Namespace, typeof(float).Name), "float"},
+        {(typeof(double).Namespace, typeof(double).Name), "double"},
+        {(typeof(decimal).Namespace, typeof(decimal).Name), "decimal"},
+
+        {(typeof(string).Namespace, typeof(string).Name), "string"},
+        {(typeof(object).Namespace, typeof(object).Name), "object"},
+
+        {(typeof(nint).Namespace, typeof(nint).Name), "nint"},
+        {(typeof(nuint).Namespace, typeof(nuint).Name), "nuint"},
+
+        {(typeof(void).Namespace, typeof(void).Name), "void"}
+    }.ToImmutableDictionary();
+
+    public string GetName() {
+        if (Assembly != _SystemAssembly) return RawName;
+        if (DeclaringType != null) return RawName;
+        return _SystemNames.GetValueOrDefault((Namespace, RawName)) ?? RawName;
+    }
+
+    private void AppendNameAsDeclaringType(StringBuilder sb) {
+        DeclaringType?.AppendNameAsDeclaringType(sb);
+        sb.Append(RawName);
+        sb.Append('/');
+    }
+
+    public override string ToString() => ToString(DuneTypeFormat.Default);
+
+    public string ToString(in DuneTypeFormat format) {
+        return format.AppendType(this).ToString();
+    }
+
+    StringBuilder IDuneMember.FormatAndAppendName(in DuneTypeFormat format, StringBuilder sb)
+        => (this as IDuneType).FormatAndAppendName(format, sb);
+
+    StringBuilder IDuneType.FormatAndAppendName(in DuneTypeFormat format, StringBuilder sb) {
+        if (format.IncludeNamespace && Namespace != null) {
+            sb.Append(Namespace);
+            sb.Append('.');
+        }
+
+        if (format.IncludeDeclaringTypes && DeclaringType != null) {
+            DeclaringType.AppendNameAsDeclaringType(sb);
+        }
+
+        if (format.IncludeNamespace) sb.Append(RawName);
+        else sb.Append(Name);
+
+        return sb;
+    }
+
+    StringBuilder IDuneGenericSymbol.FormatAndAppendGenericParameters(in DuneTypeFormat genericFormat, StringBuilder sb) {
+        return sb.Append(string.Join(", ", GenericParameterNames));
+    }
+
+    public override bool Equals(object? obj) => Equals(obj as DuneTypeSignature);
+    public bool Equals(IDuneSymbol? other) => Equals(other as DuneTypeSignature);
+    public bool Equals(DuneTypeSignature? other) {
+        if (ReferenceEquals(this, other)) return true;
+        if (other is null) return false;
+
+        if (RawName != other.RawName) return false;
+        if (Namespace != other.Namespace) return false;
+        if (Assembly != other.Assembly) return false;
+        if (GenericParameterCount != other.GenericParameterCount) return false;
+
+        if (DeclaringType != other.DeclaringType) return false;
+
+        return true;
+    }
+
+    public static bool operator ==(DuneTypeSignature? a, DuneTypeSignature? b) => a?.Equals(b) ?? b is null;
+    public static bool operator !=(DuneTypeSignature? a, DuneTypeSignature? b) => !(a == b);
+
+    public override int GetHashCode() =>
+        InternalUtils.HashCodeCombine(Assembly, Namespace, RawName, GenericParameterCount, DeclaringType);
+}
