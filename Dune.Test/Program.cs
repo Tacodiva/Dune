@@ -10,7 +10,6 @@ using System.Text;
 using Dune;
 using Mono.Cecil;
 
-
 // DuneSandboxRules rules = new(false);
 
 // foreach (Type type in typeof(int).Assembly.GetTypes()) {
@@ -55,7 +54,7 @@ DuneSandboxRules readRules = DuneSandboxRules.Deserialize(ruleBytes);
 if (!rules.IsEquivalentTo(readRules))
     throw new Exception("Read rules not equivalent.");
 
-Console.WriteLine(DuneSandboxRules.Stringify(readRules));
+// Console.WriteLine(DuneSandboxRules.Stringify(readRules));
 
 rules = readRules;
 
@@ -84,8 +83,14 @@ public sealed class MyTestAttribute : Attribute {
     public MyTestAttribute(Type type) { }
 }
 
-[MyTest(typeof(List<>))]
-public class MyType {
+namespace MyNamespace {
+    [MyTest(typeof(List<>))]
+    public class MyType {
+
+        public class MyInnerType {
+
+        }
+    }
 }
 
 public class ReferenceResolver : IDuneScriptReferenceResolver {

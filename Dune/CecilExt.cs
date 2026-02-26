@@ -1,147 +1,366 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using Mono.Cecil;
 
+using System;
+using System.Reflection;
+using System.Runtime.Loader;
 
 namespace Dune;
 
-public static class CecilExt {
 
-    private static IDuneMemberSignature? FromCecil(IMemberDefinition? member, DuneCecilContext? ctx) {
-        return member switch {
-            CecilTypeDefinition typeDef => DuneTypeSignature.FromTypeDefinition(typeDef),
-            CecilMethodDefinition methodDef => DuneMethodSignature.FromMethodDefinition(methodDef),
-            CecilFieldDefinition fieldDef => DuneFieldSignature.FromFieldDefinition(fieldDef),
-            _ => null,
-        };
+public static class ReflectionExt {
+
+    private static bool IsMatch(Type? type, DuneTypeSignature? signature, DuneReflectionContext? ctx) {
+        if (type == null || signature == null)
+            return type == null && signature == null;
+
+        if (type.Name != signature.Name) return false;
+        if (type.Namespace != signature.Namespace) return false;
+        if (type.GenericTypeArguments.Length != signature.GenericParameterCount) return false;
+
+        if (!IsMatch(type.DeclaringType, signature.DeclaringType, ctx))
+            return false;
+
+        if (!signature.Assembly.Matches(DuneAssemblyReference.FromAssembly(type.Assembly, ctx)))
+            return false;
+
+        return true;
     }
 
-    public static DuneMethodSignature GetDuneMemberMethod(this CecilAssemblyDefinition assemblyDefinition, string path, DuneCecilContext? ctx = null)
-        => TryGetDuneMemberMethod(assemblyDefinition, path, ctx) ?? throw new KeyNotFoundException($"Method '{path}' does not exist.");
+    public static Type? TryGetType(this AssemblyLoadContext assemblyCtx, DuneTypeSignature type, DuneReflectionContext? ctx = null) {
+        foreach (Assembly assembly in assemblyCtx.Assemblies) {
+            Type? test = TryGetType(assembly, type, ctx);
+            if (test != null) return test;
+        }
+        return null;
+    }
 
-    public static DuneTypeSignature GetDuneMemberType(this CecilAssemblyDefinition assemblyDefinition, string path, DuneCecilContext? ctx = null)
-        => TryGetDuneMemberType(assemblyDefinition, path, ctx) ?? throw new KeyNotFoundException($"Type '{path}' does not exist.");
+    public static Type? TryGetType(this Assembly assembly, DuneTypeSignature type, DuneReflectionContext? ctx = null) {
+        if (!type.Assembly.Matches(DuneAssemblyReference.FromAssembly(assembly, ctx)))
+            return null;
 
-    public static DuneFieldSignature GetDuneMemberField(this CecilAssemblyDefinition assemblyDefinition, string path, DuneCecilContext? ctx = null)
-        => TryGetDuneMemberField(assemblyDefinition, path, ctx) ?? throw new KeyNotFoundException($"Field '{path}' does not exist.");
+        foreach (Type test in assembly.GetTypes()) {
+            if (IsMatch(test, type, ctx))
+                return test;
+        }
 
-    public static DuneMethodSignature? TryGetDuneMemberMethod(this CecilAssemblyDefinition assemblyDefinition, string path, DuneCecilContext? ctx = null)
-        => TryGetDuneMember(assemblyDefinition, path, ctx) as DuneMethodSignature;
+        return null;
+    }
 
-    public static DuneTypeSignature? TryGetDuneMemberType(this CecilAssemblyDefinition assemblyDefinition, string path, DuneCecilContext? ctx = null)
-        => TryGetDuneMember(assemblyDefinition, path, ctx) as DuneTypeSignature;
+    private static bool IsMatch(MethodBase? methodBase, DuneMethodSignature? signature, DuneReflectionContext? ctx) {
+        if (methodBase == null || signature == null)
+            return methodBase == null && signature == null;
 
-    public static DuneFieldSignature? TryGetDuneMemberField(this CecilAssemblyDefinition assemblyDefinition, string path, DuneCecilContext? ctx = null)
-        => TryGetDuneMember(assemblyDefinition, path, ctx) as DuneFieldSignature;
+        if (methodBase.Name != signature.Name)
+            return false;
 
-    public static IDuneMemberSignature? TryGetDuneMember(this CecilAssemblyDefinition assemblyDefinition, string path, DuneCecilContext? ctx = null)
-        => FromCecil(TryGetMember(assemblyDefinition, path.Split('.')), ctx);
+        ParameterInfo[] parameters = methodBase.GetParameters();
 
-    public static CecilMethodDefinition? TryGetMemberMethod(this CecilAssemblyDefinition assemblyDefinition, string path)
-        => TryGetMember(assemblyDefinition, path) as CecilMethodDefinition;
+        if (parameters.Length != signature.Parameters.Length)
+            return false;
 
-    public static CecilTypeDefinition? TryGetMemberType(this CecilAssemblyDefinition assemblyDefinition, string path)
-        => TryGetMember(assemblyDefinition, path) as CecilTypeDefinition;
+        if (methodBase is MethodInfo methodInfo) {
+            InternalUtils.Assert(!signature.IsConstructor);
 
-    public static CecilPropertyDefinition? TryGetMemberProperty(this CecilAssemblyDefinition assemblyDefinition, string path)
-        => TryGetMember(assemblyDefinition, path) as CecilPropertyDefinition;
+            if (methodInfo.GetGenericArguments().Length != signature.GenericParameterCount)
+                return false;
 
-    public static CecilEventDefinition? TryGetMemberEvent(this CecilAssemblyDefinition assemblyDefinition, string path)
-        => TryGetMember(assemblyDefinition, path) as CecilEventDefinition;
+            if (DuneTypeReference.FromType(methodInfo.ReturnType, ctx) != signature.ReturnType)
+                return false;
+        } else {
+            InternalUtils.Assert(methodBase is ConstructorInfo && signature.IsConstructor);
+        }
 
-    public static CecilFieldDefinition? TryGetMemberField(this CecilAssemblyDefinition assemblyDefinition, string path)
-        => TryGetMember(assemblyDefinition, path) as CecilFieldDefinition;
+        for (int i = 0; i < parameters.Length; i++) {
+            if (DuneTypeReference.FromType(parameters[i].ParameterType, ctx) != signature.Parameters[i].Type)
+                return false;
+        }
 
-    public static IMemberDefinition? TryGetMember(this CecilAssemblyDefinition assemblyDefinition, string path)
-        => TryGetMember(assemblyDefinition, path.Split('.'));
+        return true;
+    }
 
-    public static IMemberDefinition? TryGetMember(this CecilAssemblyDefinition assemblyDefinition, params string[] pathParts) {
-        foreach (CecilModuleDefinition moduleDefinition in assemblyDefinition.Modules) {
+    public static MethodBase? TryGetMethod(this AssemblyLoadContext assemblyCtx, DuneMethodSignature method, DuneReflectionContext? ctx = null) {
+        foreach (Assembly assembly in assemblyCtx.Assemblies) {
+            MethodBase? test = TryGetMethod(assembly, method, ctx);
+            if (test != null) return test;
+        }
+        return null;
+    }
 
-            foreach (CecilTypeDefinition typeDefinition in moduleDefinition.Types) {
+    public static MethodBase? TryGetMethod(this Assembly assembly, DuneMethodSignature method, DuneReflectionContext? ctx = null) {
+        if (method.DeclaringType == null) return null;
+        Type? declaringType = TryGetType(assembly, method.DeclaringType, ctx);
+        if (declaringType == null) return null;
 
-                string[] nameParts = typeDefinition.FullName.Split('.');
-
-                if (nameParts.Length > pathParts.Length)
-                    continue;
-
-                int i = 0;
-
-                for (; i < nameParts.Length; i++) {
-                    if (nameParts[i] != pathParts[i])
-                        break;
-                }
-
-                if (i != nameParts.Length)
-                    continue;
-
-                return TryGetMember(typeDefinition, [.. pathParts.Skip(i)]);
+        if (method.IsConstructor) {
+            foreach (ConstructorInfo test in declaringType.GetConstructors(DuneReflectionContext.EverythingFlags)) {
+                if (IsMatch(test, method, ctx))
+                    return test;
+            }
+        } else {
+            foreach (MethodInfo test in declaringType.GetMethods(DuneReflectionContext.EverythingFlags)) {
+                if (IsMatch(test, method, ctx))
+                    return test;
             }
         }
 
         return null;
     }
 
-    public static DuneMethodSignature GetDuneMemberMethod(this CecilTypeDefinition typeDefinition, string path, DuneCecilContext? ctx = null)
-        => TryGetDuneMemberMethod(typeDefinition, path, ctx) ?? throw new KeyNotFoundException($"Method '{path}' does not exist.");
+    public static FieldInfo? TryGetField(this AssemblyLoadContext assemblyCtx, DuneFieldSignature field, DuneReflectionContext? ctx = null) {
+        foreach (Assembly assembly in assemblyCtx.Assemblies) {
+            FieldInfo? test = TryGetField(assembly, field, ctx);
+            if (test != null) return test;
+        }
+        return null;
+    }
 
-    public static DuneTypeSignature GetDuneMemberType(this CecilTypeDefinition typeDefinition, string path, DuneCecilContext? ctx = null)
-        => TryGetDuneMemberType(typeDefinition, path, ctx) ?? throw new KeyNotFoundException($"Type '{path}' does not exist.");
+    public static FieldInfo? TryGetField(this Assembly assembly, DuneFieldSignature field, DuneReflectionContext? ctx = null) {
+        if (field.DeclaringType == null) return null;
+        Type? declaringType = TryGetType(assembly, field.DeclaringType, ctx);
+        if (declaringType == null) return null;
 
-    public static DuneFieldSignature GetDuneMemberField(this CecilTypeDefinition typeDefinition, string path, DuneCecilContext? ctx = null)
-        => TryGetDuneMemberField(typeDefinition, path, ctx) ?? throw new KeyNotFoundException($"Field '{path}' does not exist.");
+        foreach (FieldInfo test in declaringType.GetFields(DuneReflectionContext.EverythingFlags)) {
+            if (test.Name != field.Name) continue;
 
-    public static DuneMethodSignature? TryGetDuneMemberMethod(this CecilTypeDefinition typeDefinition, string path, DuneCecilContext? ctx = null)
-        => TryGetDuneMember(typeDefinition, path, ctx) as DuneMethodSignature;
-
-    public static DuneTypeSignature? TryGetDuneMemberType(this CecilTypeDefinition typeDefinition, string path, DuneCecilContext? ctx = null)
-        => TryGetDuneMember(typeDefinition, path, ctx) as DuneTypeSignature;
-
-    public static DuneFieldSignature? TryGetDuneMemberField(this CecilTypeDefinition typeDefinition, string path, DuneCecilContext? ctx = null)
-        => TryGetDuneMember(typeDefinition, path, ctx) as DuneFieldSignature;
-
-    public static IDuneMemberSignature? TryGetDuneMember(this CecilTypeDefinition typeDefinition, string path, DuneCecilContext? ctx = null)
-        => FromCecil(TryGetMember(typeDefinition, path.Split('.')), ctx);
-
-    public static CecilMethodDefinition? TryGetMemberMethod(this CecilTypeDefinition typeDefinition, string path)
-        => TryGetMember(typeDefinition, path) as CecilMethodDefinition;
-
-    public static CecilTypeDefinition? TryGetMemberType(this CecilTypeDefinition typeDefinition, string path)
-        => TryGetMember(typeDefinition, path) as CecilTypeDefinition;
-
-    public static CecilPropertyDefinition? TryGetMemberProperty(this CecilTypeDefinition typeDefinition, string path)
-        => TryGetMember(typeDefinition, path) as CecilPropertyDefinition;
-
-    public static CecilEventDefinition? TryGetMemberEvent(this CecilTypeDefinition typeDefinition, string path)
-        => TryGetMember(typeDefinition, path) as CecilEventDefinition;
-
-    public static CecilFieldDefinition? TryGetMemberField(this CecilTypeDefinition typeDefinition, string path)
-        => TryGetMember(typeDefinition, path) as CecilFieldDefinition;
-
-    public static IMemberDefinition? TryGetMember(this CecilTypeDefinition typeDefinition, string path)
-        => TryGetMember(typeDefinition, path.Split('.'));
-
-    public static IMemberDefinition? TryGetMember(this CecilTypeDefinition typeDefinition, params string[] pathParts) {
-        if (pathParts.Length == 0)
-            return typeDefinition;
-
-        if (pathParts.Length == 1) {
-
-            foreach (IMemberDefinition def in (IEnumerable<IMemberDefinition>)[
-                ..typeDefinition.Methods,
-                ..typeDefinition.Fields,
-                ..typeDefinition.Properties,
-                ..typeDefinition.Events,
-            ]) {
-                if (def.Name == pathParts[0]) return def;
-            }
+            if (DuneTypeReference.FromType(test.FieldType, ctx) != field.Type)
+                continue;
+            return test;
         }
 
-        foreach (CecilTypeDefinition def in typeDefinition.NestedTypes) {
-            if (def.Name == pathParts[0]) {
-                return TryGetMember(def, [.. pathParts.Skip(1)]);
+        return null;
+    }
+
+    public static PropertyInfo? TryGetProperty(this AssemblyLoadContext assemblyCtx, DunePropertySignature property, DuneReflectionContext? ctx = null) {
+        foreach (Assembly assembly in assemblyCtx.Assemblies) {
+            PropertyInfo? test = TryGetProperty(assembly, property, ctx);
+            if (test != null) return test;
+        }
+        return null;
+    }
+
+    public static PropertyInfo? TryGetProperty(this Assembly assembly, DunePropertySignature property, DuneReflectionContext? ctx = null) {
+        if (property.DeclaringType == null) return null;
+        Type? declaringType = TryGetType(assembly, property.DeclaringType, ctx);
+        if (declaringType == null) return null;
+
+        foreach (PropertyInfo test in declaringType.GetProperties(DuneReflectionContext.EverythingFlags)) {
+            if (test.Name != property.Name) continue;
+
+            if (!IsMatch(test.GetMethod, property.GetMethod, ctx)) continue;
+            if (!IsMatch(test.SetMethod, property.SetMethod, ctx)) continue;
+
+            return test;
+        }
+
+        return null;
+    }
+
+    public static EventInfo? TryGetEvent(this AssemblyLoadContext assemblyCtx, DuneEventSignature @event, DuneReflectionContext? ctx = null) {
+        foreach (Assembly assembly in assemblyCtx.Assemblies) {
+            EventInfo? test = TryGetEvent(assembly, @event, ctx);
+            if (test != null) return test;
+        }
+        return null;
+    }
+
+    public static EventInfo? TryGetEvent(this Assembly assembly, DuneEventSignature @event, DuneReflectionContext? ctx = null) {
+        if (@event.DeclaringType == null) return null;
+        Type? declaringType = TryGetType(assembly, @event.DeclaringType, ctx);
+        if (declaringType == null) return null;
+
+        foreach (EventInfo test in declaringType.GetEvents(DuneReflectionContext.EverythingFlags)) {
+            if (test.Name != @event.Name) continue;
+
+            if (!IsMatch(test.AddMethod, @event.AddMethod, ctx)) continue;
+            if (!IsMatch(test.RaiseMethod, @event.RaiseMethod, ctx)) continue;
+            if (!IsMatch(test.RemoveMethod, @event.RemoveMethod, ctx)) continue;
+
+            return test;
+        }
+
+        return null;
+    }
+}
+
+public static class CecilExt {
+
+    public static CecilTypeDefinition? TryGetTypeDefinition(this CecilAssemblyDefinition assembly, DuneTypeSignature type, DuneCecilContext? ctx = null) {
+        foreach (CecilModuleDefinition module in assembly.Modules) {
+            CecilTypeDefinition? found = TryGetTypeDefinition(module, type, ctx);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private static bool IsMatch(CecilTypeDefinition definition, DuneTypeSignature signature, DuneCecilContext? ctx) {
+        if (definition.Name != signature.RawName)
+            return false;
+
+        string? signatureNamespace = signature.DeclaringType == null ? null : signature.Namespace;
+        string? definitionNamespace = string.IsNullOrWhiteSpace(definition.Namespace) ? null : definition.Namespace;
+
+        if (signatureNamespace != definitionNamespace)
+            return false;
+
+        if (definition.GenericParameters.Count != signature.GenericParameterCount)
+            return false;
+
+        if (!signature.Assembly.Matches(DuneAssemblyReference.FromAssemblyDefinition(definition.Module.Assembly, ctx)))
+            return false;
+
+        return true;
+    }
+
+    public static CecilTypeDefinition? TryGetTypeDefinition(this CecilModuleDefinition module, DuneTypeSignature type, DuneCecilContext? ctx = null) {
+
+        if (type.DeclaringType == null) {
+            // If the type doesn't have a declaring type, it should be in the module's root.
+            foreach (CecilTypeDefinition test in module.Types) {
+                if (IsMatch(test, type, ctx))
+                    return test;
             }
+
+            return null;
+        } else {
+            // Otherwise it'll be in the declaring type.
+            CecilTypeDefinition? declaringType = TryGetTypeDefinition(module, type.DeclaringType, ctx);
+
+            if (declaringType == null)
+                return null;
+
+            foreach (CecilTypeDefinition test in declaringType.NestedTypes) {
+                if (IsMatch(test, type, ctx))
+                    return test;
+            }
+
+            return null;
+        }
+    }
+
+    private static bool IsMatch(CecilMethodDefinition? definition, DuneMethodSignature? signature, DuneCecilContext? ctx) {
+        if (definition == null || signature == null)
+            return definition == null && signature == null;
+
+        if (definition.Name != signature.Name)
+            return false;
+
+        if (definition.GenericParameters.Count != signature.GenericParameterCount)
+            return false;
+
+        if (definition.Parameters.Count != signature.Parameters.Length)
+            return false;
+
+        if (DuneTypeReference.FromTypeReference(definition.ReturnType, ctx) != signature.ReturnType)
+            return false;
+
+        for (int i = 0; i < definition.Parameters.Count; i++) {
+            if (DuneTypeReference.FromTypeReference(definition.Parameters[i].ParameterType, ctx) != signature.Parameters[i].Type)
+                return false;
+        }
+
+        return true;
+    }
+
+    public static CecilMethodDefinition? TryGetMethodDefinition(this CecilAssemblyDefinition assembly, DuneMethodSignature method, DuneCecilContext? ctx = null) {
+        foreach (CecilModuleDefinition module in assembly.Modules) {
+            CecilMethodDefinition? found = TryGetMethodDefinition(module, method, ctx);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    public static CecilMethodDefinition? TryGetMethodDefinition(this CecilModuleDefinition module, DuneMethodSignature method, DuneCecilContext? ctx = null) {
+
+        if (method.DeclaringType == null) return null;
+        CecilTypeDefinition? declaringType = TryGetTypeDefinition(module, method.DeclaringType, ctx);
+        if (declaringType == null) return null;
+
+        foreach (CecilMethodDefinition test in declaringType.Methods) {
+            if (IsMatch(test, method, ctx))
+                return test;
+        }
+
+        return null;
+    }
+
+    public static CecilFieldDefinition? TryGetFieldDefinition(this CecilAssemblyDefinition assembly, DuneFieldSignature field, DuneCecilContext? ctx = null) {
+        foreach (CecilModuleDefinition module in assembly.Modules) {
+            CecilFieldDefinition? found = TryGetFieldDefinition(module, field, ctx);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    public static CecilFieldDefinition? TryGetFieldDefinition(this CecilModuleDefinition module, DuneFieldSignature field, DuneCecilContext? ctx = null) {
+        if (field.DeclaringType == null) return null;
+        CecilTypeDefinition? declaringType = TryGetTypeDefinition(module, field.DeclaringType, ctx);
+        if (declaringType == null) return null;
+
+        foreach (CecilFieldDefinition test in declaringType.Fields) {
+            if (test.Name != field.Name) continue;
+
+            if (DuneTypeReference.FromTypeReference(test.FieldType, ctx) != field.Type)
+                continue;
+
+            return test;
+        }
+
+        return null;
+    }
+
+    public static CecilPropertyDefinition? TryGetPropertyDefinition(this CecilAssemblyDefinition assembly, DunePropertySignature property, DuneCecilContext? ctx = null) {
+        foreach (CecilModuleDefinition module in assembly.Modules) {
+            CecilPropertyDefinition? found = TryGetPropertyDefinition(module, property, ctx);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    public static CecilPropertyDefinition? TryGetPropertyDefinition(this CecilModuleDefinition module, DunePropertySignature property, DuneCecilContext? ctx = null) {
+        if (property.DeclaringType == null) return null;
+        CecilTypeDefinition? declaringType = TryGetTypeDefinition(module, property.DeclaringType, ctx);
+        if (declaringType == null) return null;
+
+        foreach (CecilPropertyDefinition test in declaringType.Properties) {
+            if (test.Name != property.Name) continue;
+
+            if (!IsMatch(test.GetMethod, property.GetMethod, ctx))
+                continue;
+
+            if (!IsMatch(test.SetMethod, property.SetMethod, ctx))
+                continue;
+
+            return test;
+        }
+
+        return null;
+    }
+
+    public static CecilEventDefinition? TryGetEventDefinition(this CecilAssemblyDefinition assembly, DuneEventSignature @event, DuneCecilContext? ctx = null) {
+        foreach (CecilModuleDefinition module in assembly.Modules) {
+            CecilEventDefinition? found = TryGetEventDefinition(module, @event, ctx);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    public static CecilEventDefinition? TryGetEventDefinition(this CecilModuleDefinition module, DuneEventSignature @event, DuneCecilContext? ctx = null) {
+        if (@event.DeclaringType == null) return null;
+        CecilTypeDefinition? declaringType = TryGetTypeDefinition(module, @event.DeclaringType, ctx);
+        if (declaringType == null) return null;
+
+        foreach (CecilEventDefinition test in declaringType.Events) {
+            if (test.Name != @event.Name) continue;
+
+            if (!IsMatch(test.AddMethod, @event.AddMethod, ctx))
+                continue;
+
+            if (!IsMatch(test.InvokeMethod, @event.RaiseMethod, ctx))
+                continue;
+
+            if (!IsMatch(test.RemoveMethod, @event.RemoveMethod, ctx))
+                continue;
+
+            return test;
         }
 
         return null;

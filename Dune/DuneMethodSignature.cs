@@ -65,6 +65,8 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
         if (ctx.TryGetMethodSignature(methodInfo, out cached))
             return cached;
 
+        InternalUtils.Assert(methodInfo.Name != ConstructorMethodName);
+
         return ctx.PutMethodSignature(methodInfo, new(
             DuneAssemblyReference.FromAssembly(methodInfo.Module.Assembly, ctx),
             methodInfo.DeclaringType == null ?
@@ -97,6 +99,8 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
             return cached;
 
         constructorInfo = GetGenericMethodDefinition(constructorInfo);
+
+        InternalUtils.Assert(constructorInfo.Name == ConstructorMethodName);
 
         return ctx.PutMethodSignature(constructorInfo, new(
             DuneAssemblyReference.FromAssembly(constructorInfo.Module.Assembly, ctx),
@@ -133,6 +137,8 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
         ctx ??= new();
         if (ctx.TryGetMethodSignature(methodDefinition, out var cached))
             return cached;
+
+        InternalUtils.Assert((methodDefinition.Name == ConstructorMethodName) == methodDefinition.IsConstructor);
 
         return ctx.PutMethodSignature(methodDefinition, new(
             DuneAssemblyReference.FromAssemblyDefinition(methodDefinition.Module.Assembly, ctx),
@@ -178,7 +184,7 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
                 ctx.PutMethodSignature(methodSymbol, method);
 
                 return DuneTypeReference.FromSymbol(
-                    methodSymbol.ReturnType, 
+                    methodSymbol.ReturnType,
                     methodSymbol.ReturnsByRefReadonly || methodSymbol.ReturnsByRef,
                     ctx
                 );
@@ -206,6 +212,9 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
     public ImmutableArray<string> GenericParameterNames { get; }
     public DuneTypeReference? ReturnType { get; }
     public ImmutableArray<DuneMethodParameter> Parameters { get; }
+
+    public const string ConstructorMethodName = ".ctor";
+    public bool IsConstructor => Name == ConstructorMethodName;
 
     IDuneType? IDuneMember.DeclaringType => DeclaringType;
 
@@ -295,7 +304,7 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
 
     public static bool operator ==(DuneMethodSignature? a, DuneMethodSignature? b) => a?.Equals(b) ?? b is null;
     public static bool operator !=(DuneMethodSignature? a, DuneMethodSignature? b) => !(a == b);
-    
+
     public override int GetHashCode() {
         int hashCode = InternalUtils.HashCodeCombine(DeclaringType, Name, GenericParameterCount, ReturnType);
         foreach (DuneMethodParameter param in Parameters)

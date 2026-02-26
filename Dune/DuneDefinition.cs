@@ -1,16 +1,14 @@
 
 namespace Dune;
 
-public abstract class DuneDefinition<TSignature> where TSignature : IDuneMemberSignature {
+public abstract class DuneDefinition<TSignature>(TSignature signature, DuneCustomAttributeContainer customAttributes)
+    where TSignature : IDuneMemberSignature {
 
-    public TSignature Signature { get; }
-    public DuneCustomAttributeContainer CustomAttributes { get; }
+    public TSignature Signature { get; } = signature;
+    public DuneCustomAttributeContainer CustomAttributes { get; } = customAttributes;
 
     public DuneAssemblyReference Assembly => Signature.Assembly;
     public string Name => Signature.Name;
 
-    protected DuneDefinition(TSignature signature, DuneCustomAttributeContainer customAttributes) {
-        Signature = signature;
-        CustomAttributes = customAttributes;
-    }
+    public override string ToString() => Signature?.ToString() ?? "null";
 }

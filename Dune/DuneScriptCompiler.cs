@@ -64,16 +64,37 @@ public interface IDuneScriptReferenceResolver {
 }
 
 public sealed class DuneCompilationProcessorContext {
-    public DuneAssemblyReference AssemblyReference { get; }
-    public CecilAssemblyDefinition Assembly { get; }
+
+    public DuneAssemblyDefinition DuneAssembly { get; }
+    public DuneAssemblyReference AssemblyReference => DuneAssembly.Reference;
+
+    public CecilAssemblyDefinition CecilAssembly { get; }
+    public DuneCecilContext CecilContext { get; }
+
+    public IAssemblySymbol RoslynAssembly { get; }
     public ImmutableArray<SemanticModel> SemanticModels { get; }
+    public DuneRoslynContext RoslynContext { get; }
 
     private readonly List<DuneDiagnostic> _diagnostics;
 
-    internal DuneCompilationProcessorContext(CecilAssemblyDefinition assembly, DuneAssemblyReference assemblyReference, ImmutableArray<SemanticModel> semanticModels, List<DuneDiagnostic> diagnostics) {
-        Assembly = assembly;
-        AssemblyReference = assemblyReference;
+    internal DuneCompilationProcessorContext(
+        DuneAssemblyDefinition duneAssembly,
+        CecilAssemblyDefinition assembly,
+        DuneCecilContext cecilContext,
+        IAssemblySymbol roslynAssembly,
+        ImmutableArray<SemanticModel> semanticModels,
+        DuneRoslynContext roslynContext,
+        List<DuneDiagnostic> diagnostics) {
+
+        DuneAssembly = duneAssembly;
+
+        CecilAssembly = assembly;
+        CecilContext = cecilContext;
+
+        RoslynAssembly = roslynAssembly;
         SemanticModels = semanticModels;
+        RoslynContext = roslynContext;
+
         _diagnostics = diagnostics;
     }
 
@@ -81,63 +102,20 @@ public sealed class DuneCompilationProcessorContext {
         _diagnostics.Add(diagnostic);
     }
 
-    public CecilTypeDefinition? TryGetTypeSignature(DuneTypeSignature targetType) {
-        if (!AssemblyReference.Matches(targetType.Assembly))
-            return null;
-
-        bool IsMatch(CecilTypeDefinition type) {
-            if (type.Name != targetType.RawName)
-                return false;
-
-            if (targetType.DeclaringType == null) {
-
-                // We only check the namespace if the target type does not have a decalring type.
-                //   This is because in cecil, inner types do not have their namespace set.
-
-                string? typeNamespace = type.Namespace;
-                if (string.IsNullOrWhiteSpace(typeNamespace)) typeNamespace = null;
-
-                if (typeNamespace != targetType.Namespace)
-                    return false;
+    public IEnumerable<(T Node, SemanticModel Semantics)> EnumerateSyntaxNodes<T>() where T : SyntaxNode {
+        foreach (SemanticModel semantics in SemanticModels) {
+            foreach (SyntaxNode node in semantics.SyntaxTree.GetRoot().DescendantNodesAndSelf()) {
+                if (node is T nodeT) yield return (nodeT, semantics);
             }
-
-            if (type.GenericParameters.Count != targetType.GenericParameterCount)
-                return false;
-
-            return true;
         }
-
-        if (targetType.DeclaringType == null) {
-            foreach (CecilModuleDefinition module in Assembly.Modules) {
-                foreach (CecilTypeDefinition type in module.Types) {
-                    if (IsMatch(type))
-                        return type;
-                }
-            }
-
-            return null;
-        } else {
-            CecilTypeDefinition? declaringType = TryGetTypeSignature(targetType.DeclaringType);
-
-            if (declaringType == null)
-                return null;
-
-            foreach (CecilTypeDefinition innerType in declaringType.NestedTypes) {
-                if (IsMatch(innerType))
-                    return innerType;
-            }
-
-            return null;
-        }
-
     }
 
-    public CustomAttribute AddAttribute(CecilCustomAttributeProvider member, CecilMethodDefinition attributeConstructor, params object[] constructorParameters) {
-        CustomAttribute attribute = new(attributeConstructor);
+    public CecilCustomAttribute AddAttribute(CecilCustomAttributeProvider member, CecilMethodDefinition attributeConstructor, params object[] constructorParameters) {
+        CecilCustomAttribute attribute = new(attributeConstructor);
 
         foreach (object constructorParameter in constructorParameters) {
             attribute.ConstructorArguments.Add(new(
-                Assembly.MainModule.ImportReference(constructorParameter.GetType()),
+                CecilAssembly.MainModule.ImportReference(constructorParameter.GetType()),
                 constructorParameter
             ));
         }
@@ -147,29 +125,45 @@ public sealed class DuneCompilationProcessorContext {
         return attribute;
     }
 
-    public CecilMethodDefinition DefineAttribute(string @namespace, string name, AttributeTargets targets, params (Type Type, string Name)[] constructorParameters) {
+    public CecilMethodDefinition DefineAttribute(string @namespace, string name, AttributeUsageAttribute usageAttribute, params (Type Type, string Name)[] constructorParameters) {
         CecilTypeDefinition attrDef = new(
             @namespace, name,
             TypeAttributes.AnsiClass | TypeAttributes.BeforeFieldInit | TypeAttributes.Public | TypeAttributes.Sealed,
-            Assembly.MainModule.ImportReference(typeof(System.Attribute))
+            CecilAssembly.MainModule.ImportReference(typeof(System.Attribute))
         );
 
         (CecilTypeReference Type, string Name)[] resolvedParameters =
-            [.. constructorParameters.Select(param => (Assembly.MainModule.ImportReference(param.Type), param.Name))];
+            [.. constructorParameters.Select(param => (CecilAssembly.MainModule.ImportReference(param.Type), param.Name))];
 
         // Add CompilerGenerated, Embedded and AttributeUsage attributes to ScriptEntrypointAttribute
         {
-            CustomAttribute attrCompilerGenerated = new(
-                Assembly.MainModule.ImportReference(typeof(CompilerGeneratedAttribute).GetConstructor([]))
+            CecilCustomAttribute attrCompilerGenerated = new(
+                CecilAssembly.MainModule.ImportReference(typeof(CompilerGeneratedAttribute).GetConstructor([]))
             );
 
-            CustomAttribute attrAttributeUsage = new(
-                Assembly.MainModule.ImportReference(typeof(AttributeUsageAttribute).GetConstructor([typeof(AttributeTargets)]))
+            CecilCustomAttribute attrAttributeUsage = new(
+                CecilAssembly.MainModule.ImportReference(typeof(AttributeUsageAttribute).GetConstructor([typeof(AttributeTargets)]))
             );
 
             attrAttributeUsage.ConstructorArguments.Add(new(
-                Assembly.MainModule.ImportReference(typeof(AttributeTargets)),
-                targets
+                CecilAssembly.MainModule.ImportReference(typeof(AttributeTargets)),
+                usageAttribute.ValidOn
+            ));
+
+            attrAttributeUsage.Properties.Add(new(
+                nameof(AttributeUsageAttribute.AllowMultiple),
+                new(
+                    CecilAssembly.MainModule.TypeSystem.Boolean,
+                    usageAttribute.AllowMultiple
+                )
+            ));
+
+            attrAttributeUsage.Properties.Add(new(
+                nameof(AttributeUsageAttribute.Inherited),
+                new(
+                    CecilAssembly.MainModule.TypeSystem.Boolean,
+                    usageAttribute.Inherited
+                )
             ));
 
             attrDef.CustomAttributes.Add(attrCompilerGenerated);
@@ -180,7 +174,7 @@ public sealed class DuneCompilationProcessorContext {
         CecilMethodDefinition attrCtorDef = new(
             ".ctor",
             MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.RTSpecialName | MethodAttributes.SpecialName,
-            Assembly.MainModule.TypeSystem.Void
+            CecilAssembly.MainModule.TypeSystem.Void
         );
 
         {
@@ -202,7 +196,7 @@ public sealed class DuneCompilationProcessorContext {
 
             ILProcessor il = attrCtorDef.Body.GetILProcessor();
             il.Emit(OpCodes.Ldarg_0);
-            il.Emit(OpCodes.Call, Assembly.MainModule.ImportReference(typeof(Attribute).GetConstructor(DuneReflectionContext.EverythingFlags, null, [], [])));
+            il.Emit(OpCodes.Call, CecilAssembly.MainModule.ImportReference(typeof(Attribute).GetConstructor(DuneReflectionContext.EverythingFlags, null, [], [])));
 
             for (int i = 0; i < resolvedParameters.Length; i++) {
                 il.Emit(OpCodes.Ldarg_0);
@@ -215,7 +209,7 @@ public sealed class DuneCompilationProcessorContext {
             attrDef.Methods.Add(attrCtorDef);
         }
 
-        Assembly.MainModule.Types.Add(attrDef);
+        CecilAssembly.MainModule.Types.Add(attrDef);
 
         return attrCtorDef;
     }
@@ -356,8 +350,8 @@ public static class DuneScriptCompiler {
         bool generatePDB = false
     ) {
         try {
-
-            DuneAssemblyReference assemblyReference = DuneAssemblyReference.FromSymbol(compilation.Assembly);
+            DuneRoslynContext roslynCtx = new();
+            DuneAssemblyReference assemblyReference = DuneAssemblyReference.FromSymbol(compilation.Assembly, roslynCtx);
 
             List<DuneDiagnostic> diagnostics = [];
 
@@ -370,7 +364,11 @@ public static class DuneScriptCompiler {
 
                 foreach (SemanticModel semantics in semanticModels) {
 
-                    ImmutableArray<DuneSandboxRoslynViolation> violations = DuneSandboxEnforcer.CheckSyntaxTree(sandboxRules, semantics.SyntaxTree, semantics, assemblyReference);
+                    ImmutableArray<DuneSandboxRoslynViolation> violations = DuneSandboxEnforcer.CheckSyntaxTree(
+                        sandboxRules,
+                        semantics.SyntaxTree, semantics,
+                        assemblyReference, roslynCtx
+                    );
 
                     if (violations.Length != 0) {
                         diagnostics.AddRange(violations.Select(violation => new DuneRoslynSandboxViolationDiagnostic(violation)));
@@ -413,15 +411,24 @@ public static class DuneScriptCompiler {
                 }
             );
 
-            // Sanity check: The compiled assembly's reference should be identical to the refernece Roslyn told us 
-            Debug.Assert(DuneAssemblyReference.FromAssemblyDefinition(cecilAssembly) == assemblyReference);
+            DuneCecilContext cecilCtx = new();
 
-            ImmutableArray<DuneSandboxCecilViolation> duneViolations = DuneSandboxEnforcer.CheckCecilAssemblyDefinition(sandboxRules, cecilAssembly);
+            // Sanity check: The compiled assembly's reference should be identical to the refernece Roslyn told us 
+            Debug.Assert(DuneAssemblyReference.FromAssemblyDefinition(cecilAssembly, cecilCtx) == assemblyReference);
+
+            ImmutableArray<DuneSandboxCecilViolation> duneViolations = DuneSandboxEnforcer.CheckCecilAssemblyDefinition(sandboxRules, cecilAssembly, cecilCtx);
             diagnostics.AddRange(duneViolations.Select(violation => new DuneCecilSandboxViolationDiagnostic(violation)));
 
             if (duneViolations.Length != 0) return DuneCompilationResult.FromDiagnostics(diagnostics);
 
-            DuneCompilationProcessorContext processorCtx = new(cecilAssembly, assemblyReference, semanticModels, diagnostics);
+            DuneAssemblyDefinition duneDefiniton = DuneAssemblyDefinition.FromAssemblyDefinition(cecilAssembly, cecilCtx);
+
+            DuneCompilationProcessorContext processorCtx = new(
+                duneDefiniton,
+                cecilAssembly, cecilCtx,
+                compilation.Assembly, semanticModels, roslynCtx,
+                diagnostics
+            );
 
             AddSourceInfoAttributes(processorCtx);
 
@@ -450,61 +457,39 @@ public static class DuneScriptCompiler {
     }
 
     private static void AddSourceInfoAttributes(DuneCompilationProcessorContext ctx) {
-
         CecilMethodDefinition sourceInfoAttributeConstructor = ctx.DefineAttribute(
             "Dune.CompilerServices", "SourceInfoAttribute",
-            AttributeTargets.Class | AttributeTargets.Struct,
-            (typeof(string[]), "sourcePaths"),
-            (typeof(int[]), "sourceLines"),
-            (typeof(int[]), "sourceCharacter")
+            new(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Enum | AttributeTargets.Interface) {
+                AllowMultiple = true,
+                Inherited = false
+            },
+            (typeof(string), "sourcePath"),
+            (typeof(int), "sourceLine"),
+            (typeof(int), "sourceCharacte")
         );
 
         void AddSourceInfo(CecilCustomAttributeProvider dst, RoslynLocation location) {
-            CustomAttribute? sourceInfoAttribute = dst.CustomAttributes
-                .FirstOrDefault(attribute => attribute.Constructor == sourceInfoAttributeConstructor);
-
-            sourceInfoAttribute ??= ctx.AddAttribute(
-                dst, sourceInfoAttributeConstructor,
-                Array.Empty<CustomAttributeArgument>(),
-                Array.Empty<CustomAttributeArgument>(),
-                Array.Empty<CustomAttributeArgument>()
-            );
-
-            InternalUtils.Assert(sourceInfoAttribute.ConstructorArguments.Count == 3);
-
-            void AddToConstructorArgumentArray(int index, object value) {
-                CustomAttributeArgument oldArg = sourceInfoAttribute.ConstructorArguments[index];
-                sourceInfoAttribute.ConstructorArguments[index] = new(
-                    oldArg.Type,
-                    ((CustomAttributeArgument[])oldArg.Value)
-                        .Append(new(((ArrayType)oldArg.Type).ElementType, value))
-                        .ToArray()
-                );
-            }
-
             FileLinePositionSpan lineSpan = location.GetMappedLineSpan();
-
-            AddToConstructorArgumentArray(0, lineSpan.Path);
-            AddToConstructorArgumentArray(1, lineSpan.StartLinePosition.Line + 1);
-            AddToConstructorArgumentArray(2, lineSpan.StartLinePosition.Character);
+            
+            ctx.AddAttribute(
+                dst, sourceInfoAttributeConstructor,
+                lineSpan.Path,
+                lineSpan.StartLinePosition.Line + 1,
+                lineSpan.StartLinePosition.Character
+            );
         }
 
-        foreach (SemanticModel treeSemantics in ctx.SemanticModels) {
-            SyntaxTree syntaxTree = treeSemantics.SyntaxTree;
+        foreach ((TypeDeclarationSyntax declr, SemanticModel semantics) in ctx.EnumerateSyntaxNodes<TypeDeclarationSyntax>()) {
+            ISymbol? classDeclr = semantics.GetDeclaredSymbol(declr);
 
-            foreach (SyntaxNode syntaxNode in syntaxTree.GetRoot().DescendantNodesAndSelf()) {
-                if (syntaxNode is TypeDeclarationSyntax) {
-                    ISymbol? classDeclr = treeSemantics.GetDeclaredSymbol(syntaxNode);
+            if (classDeclr is INamedTypeSymbol classDeclrNamed) {
+                DuneTypeSignature declaredType = DuneTypeSignature.FromSymbol(classDeclrNamed);
+                CecilTypeDefinition? declaredTypeDefinition = ctx.CecilAssembly.TryGetTypeDefinition(declaredType);
 
-                    if (classDeclr is INamedTypeSymbol classDeclrNamed) {
-                        DuneTypeSignature declaredType = DuneTypeSignature.FromSymbol(classDeclrNamed);
-                        CecilTypeDefinition? declaredTypeDefinition = ctx.TryGetTypeSignature(declaredType);
-
-                        if (declaredTypeDefinition != null) 
-                            AddSourceInfo(declaredTypeDefinition, syntaxNode.GetLocation());
-                    }
-                }
+                if (declaredTypeDefinition != null)
+                    AddSourceInfo(declaredTypeDefinition, declr.GetLocation());
             }
+
         }
     }
 

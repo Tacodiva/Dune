@@ -348,15 +348,15 @@ public sealed partial class DuneSandboxRules : IDuneSandboxRules {
         => AllowMethodsByName(type, methodName, allowDependencies, ctx, true);
 
     public void AllowConstructors<T>(bool allowDependencies = true, DuneReflectionContext? ctx = null)
-        => AllowMethodsByName(typeof(T), ".ctor", allowDependencies, ctx, true);
+        => AllowMethodsByName(typeof(T), DuneMethodSignature.ConstructorMethodName, allowDependencies, ctx, true);
 
     public void AllowConstructors(Type type, bool allowDependencies = true, DuneReflectionContext? ctx = null)
-        => AllowMethodsByName(type, ".ctor", allowDependencies, ctx, true);
+        => AllowMethodsByName(type, DuneMethodSignature.ConstructorMethodName, allowDependencies, ctx, true);
 
     private void AllowMethodsByName(Type type, string methodName, bool allowDependencies, DuneReflectionContext? ctx, bool allowMultiple) {
         MethodBase[] selectedMethods;
 
-        if (methodName == ".ctor") {
+        if (methodName == DuneMethodSignature.ConstructorMethodName) {
             selectedMethods = type.GetConstructors(DuneReflectionContext.EverythingPublicFlags);
         } else {
             selectedMethods = [.. type.GetMethods(DuneReflectionContext.EverythingPublicFlags).Where(method => method.Name == methodName)];
@@ -373,10 +373,10 @@ public sealed partial class DuneSandboxRules : IDuneSandboxRules {
     }
 
     public void AllowConstructor<T>(Type[] parameters, bool allowDependencies = true, DuneReflectionContext? ctx = null)
-        => AllowMethod<T>(".ctor", parameters, allowDependencies, ctx);
+        => AllowMethod<T>(DuneMethodSignature.ConstructorMethodName, parameters, allowDependencies, ctx);
 
     public void AllowConstructor(Type type, Type[] parameters, bool allowDependencies = true, DuneReflectionContext? ctx = null)
-        => AllowMethod(type, ".ctor", parameters, allowDependencies, ctx);
+        => AllowMethod(type, DuneMethodSignature.ConstructorMethodName, parameters, allowDependencies, ctx);
 
     public void AllowMethod<T>(string methodName, Type[] parameters, bool allowDependencies = true, DuneReflectionContext? ctx = null)
         => AllowMethod(typeof(T), methodName, parameters, allowDependencies, ctx);
@@ -384,7 +384,7 @@ public sealed partial class DuneSandboxRules : IDuneSandboxRules {
     public void AllowMethod(Type type, string methodName, Type[] parameters, bool allowDependencies = true, DuneReflectionContext? ctx = null) {
         MethodBase? method;
 
-        if (methodName == ".ctor") {
+        if (methodName == DuneMethodSignature.ConstructorMethodName) {
             method = type.GetConstructor(DuneReflectionContext.EverythingPublicFlags, null, parameters, []);
         } else {
             method = type.GetMethod(methodName, DuneReflectionContext.EverythingPublicFlags, null, parameters, []);

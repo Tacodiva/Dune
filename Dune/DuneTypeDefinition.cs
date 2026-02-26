@@ -103,5 +103,23 @@ public sealed class DuneTypeDefinition : DuneDefinition<DuneTypeSignature> {
         InternalUtils.Assert(GenericParameters.Length == signature.GenericParameterNames.Length);
     }
 
+    public DuneMethodDefinition? TryGetMethodDefinition(DuneMethodSignature signature) {
+        if (signature.DeclaringType != Signature) return null;
+        return Methods.FirstOrDefault(method => method.Signature == signature);        
+    }
 
+    public DuneFieldDefinition? TryGetFieldDefinition(DuneFieldSignature signature) {
+        if (signature.DeclaringType != Signature) return null;
+        return Fields.FirstOrDefault(field => field.Signature == signature);        
+    }
+
+    public DunePropertyDefinition? TryGetPropertyDefinition(DunePropertySignature signature) {
+        if (signature.DeclaringType != Signature) return null;
+        return Properties.FirstOrDefault(property => property.Signature == signature);        
+    }
+
+    public DuneEventDefinition? TryGetEventDefinition(DuneEventSignature signature) {
+        if (signature.DeclaringType != Signature) return null;
+        return Events.FirstOrDefault(@event => @event.Signature == signature);        
+    }
 }
