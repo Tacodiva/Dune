@@ -17,13 +17,13 @@ public sealed class DuneFieldDefinition : DuneDefinition<DuneFieldSignature> {
         );
     }
 
-    public static DuneFieldDefinition FromFieldDefinition(CecilFieldDefinition fieldDefinition, DuneCecilContext? ctx = null) {
+    public static DuneFieldDefinition FromCecilDefinition(CecilFieldDefinition fieldDefinition, DuneCecilContext? ctx = null) {
         InternalUtils.ThrowIfArgumentNull(fieldDefinition);
 
         ctx ??= new();
 
         return new(
-            DuneFieldSignature.FromFieldDefinition(fieldDefinition, ctx),
+            DuneFieldSignature.FromCecilDefinition(fieldDefinition, ctx),
             DuneCustomAttributeContainer.FromCecil(fieldDefinition, ctx)
         );
     }

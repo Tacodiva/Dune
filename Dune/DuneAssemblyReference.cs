@@ -42,10 +42,10 @@ public sealed class DuneAssemblyReference(string name, Version? version = null, 
         return ctx?.PutAssemblyReference(assemblyName, reference) ?? reference;
     }
 
-    public static DuneAssemblyReference FromAssemblyDefinition(CecilAssemblyDefinition assemblyDef, DuneCecilContext? ctx = null)
-        => FromAssemblyNameReference(assemblyDef.Name, ctx);
+    public static DuneAssemblyReference FromCecilDefinition(CecilAssemblyDefinition assemblyDef, DuneCecilContext? ctx = null)
+        => FromCecilReference(assemblyDef.Name, ctx);
 
-    public static DuneAssemblyReference FromAssemblyNameReference(AssemblyNameReference assemblyNameRef, DuneCecilContext? ctx = null) {
+    public static DuneAssemblyReference FromCecilReference(AssemblyNameReference assemblyNameRef, DuneCecilContext? ctx = null) {
         InternalUtils.ThrowIfArgumentNullOrWhitespace(assemblyNameRef.Name);
 
         if (ctx?.TryGetAssemblyReference(assemblyNameRef, out var cached) ?? false)

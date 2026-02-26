@@ -17,11 +17,11 @@ public sealed class DuneEventDefinition : DuneDefinition<DuneEventSignature> {
         );
     }
 
-    public static DuneEventDefinition FromEventDefinition(CecilEventDefinition eventDefinition, DuneCecilContext? ctx = null) {
+    public static DuneEventDefinition FromCecilDefinition(CecilEventDefinition eventDefinition, DuneCecilContext? ctx = null) {
         ctx ??= new();
 
         return new(
-            DuneEventSignature.FromEventDefinition(eventDefinition, ctx),
+            DuneEventSignature.FromCecilDefinition(eventDefinition, ctx),
             DuneCustomAttributeContainer.FromCecil(eventDefinition, ctx)
         );
     }

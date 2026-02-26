@@ -44,16 +44,16 @@ public sealed class DuneFieldSignature : DuneMemberSignature, IEquatable<DuneFie
         ));
     }
 
-    public static DuneFieldSignature FromFieldDefinition(CecilFieldDefinition fieldDef, DuneCecilContext? ctx = null) {
+    public static DuneFieldSignature FromCecilDefinition(CecilFieldDefinition fieldDef, DuneCecilContext? ctx = null) {
         ctx ??= new();
         if (ctx.TryGetFieldSignature(fieldDef, out var cached))
             return cached;
 
         return ctx.PutFieldSignature(fieldDef, new(
-            DuneAssemblyReference.FromAssemblyDefinition(fieldDef.Module.Assembly, ctx),
-            DuneTypeSignature.FromTypeDefinition(fieldDef.DeclaringType, ctx),
+            DuneAssemblyReference.FromCecilDefinition(fieldDef.Module.Assembly, ctx),
+            DuneTypeSignature.FromCecilDefinition(fieldDef.DeclaringType, ctx),
             fieldDef.Name,
-            DuneTypeReference.FromTypeReference(fieldDef.FieldType, ctx)
+            DuneTypeReference.FromCecilReference(fieldDef.FieldType, ctx)
         ));
     }
 

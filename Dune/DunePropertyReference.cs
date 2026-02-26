@@ -39,12 +39,12 @@ public sealed class DunePropertyReference : DuneMemberReference<DunePropertySign
         ));
     }
 
-    public static DunePropertyReference FromPropertyDefinition(CecilPropertyDefinition propertyDefinition, DuneCecilContext? ctx = null) {
+    public static DunePropertyReference FromCecilReference(CecilPropertyReference propertyReference, DuneCecilContext? ctx = null) {
         ctx ??= new();
 
         return new(
-            DunePropertySignature.FromPropertyDefinition(propertyDefinition, ctx),
-            DuneTypeSignatureReference.FromTypeReference(propertyDefinition.DeclaringType, ctx)
+            DunePropertySignature.FromCecilDefinition(propertyReference.Resolve(), ctx),
+            DuneTypeSignatureReference.FromCecilReference(propertyReference.DeclaringType, ctx)
         );
     }
 

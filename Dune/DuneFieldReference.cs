@@ -39,7 +39,7 @@ public sealed class DuneFieldReference : DuneMemberReference<DuneFieldSignature>
         ));
     }
 
-    public static DuneFieldReference FromFieldReference(CecilFieldReference fieldReference, DuneCecilContext? ctx = null) {
+    public static DuneFieldReference FromCecilReference(CecilFieldReference fieldReference, DuneCecilContext? ctx = null) {
         InternalUtils.ThrowIfArgumentNull(fieldReference);
 
         ctx ??= new();
@@ -47,8 +47,8 @@ public sealed class DuneFieldReference : DuneMemberReference<DuneFieldSignature>
             return cached;
 
         return ctx.PutFieldReference(fieldReference, new(
-            DuneFieldSignature.FromFieldDefinition(fieldReference.Resolve(), ctx),
-            DuneTypeSignatureReference.FromTypeReference(fieldReference.DeclaringType, ctx)
+            DuneFieldSignature.FromCecilDefinition(fieldReference.Resolve(), ctx),
+            DuneTypeSignatureReference.FromCecilReference(fieldReference.DeclaringType, ctx)
         ));
     }
 

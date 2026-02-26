@@ -50,7 +50,7 @@ public abstract partial class DuneAssemblyProvider {
 
         public CecilAssemblyDefinition Resolve(AssemblyNameReference name, ReaderParameters? parameters) {
             try {
-                DuneAssembly assembly = Provider.GetAssembly(DuneAssemblyReference.FromAssemblyNameReference(name));
+                DuneAssembly assembly = Provider.GetAssembly(DuneAssemblyReference.FromCecilReference(name));
 
                 if (assembly.HasCecilDefinition) {
                     return assembly.GetCecilDefinition();

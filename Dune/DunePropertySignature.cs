@@ -46,16 +46,16 @@ public sealed class DunePropertySignature : DuneMemberSignature, IEquatable<Dune
         ));
     }
 
-    public static DunePropertySignature FromPropertyDefinition(CecilPropertyDefinition propertyDefinition, DuneCecilContext? ctx = null) {
+    public static DunePropertySignature FromCecilDefinition(CecilPropertyDefinition propertyDefinition, DuneCecilContext? ctx = null) {
         ctx ??= new();
 
         return new(
-            DuneAssemblyReference.FromAssemblyDefinition(propertyDefinition.Module.Assembly),
-            propertyDefinition.DeclaringType == null ? null : DuneTypeSignature.FromTypeDefinition(propertyDefinition.DeclaringType, ctx),
+            DuneAssemblyReference.FromCecilDefinition(propertyDefinition.Module.Assembly),
+            propertyDefinition.DeclaringType == null ? null : DuneTypeSignature.FromCecilDefinition(propertyDefinition.DeclaringType, ctx),
             propertyDefinition.Name,
-            DuneTypeReference.FromTypeReference(propertyDefinition.PropertyType, ctx),
-            propertyDefinition.GetMethod == null ? null : DuneMethodSignature.FromMethodDefinition(propertyDefinition.GetMethod, ctx),
-            propertyDefinition.SetMethod == null ? null : DuneMethodSignature.FromMethodDefinition(propertyDefinition.SetMethod, ctx)
+            DuneTypeReference.FromCecilReference(propertyDefinition.PropertyType, ctx),
+            propertyDefinition.GetMethod == null ? null : DuneMethodSignature.FromCecilDefinition(propertyDefinition.GetMethod, ctx),
+            propertyDefinition.SetMethod == null ? null : DuneMethodSignature.FromCecilDefinition(propertyDefinition.SetMethod, ctx)
         );
     }
 

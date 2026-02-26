@@ -48,27 +48,27 @@ public sealed class DuneTypeDefinition : DuneDefinition<DuneTypeSignature> {
         );
     }
 
-    public static DuneTypeDefinition FromTypeDefinition(CecilTypeDefinition type, DuneCecilContext? ctx = null) {
+    public static DuneTypeDefinition FromCecilDefinition(CecilTypeDefinition type, DuneCecilContext? ctx = null) {
         InternalUtils.ThrowIfArgumentNull(type);
 
         ctx ??= new();
 
         return new(
-            DuneTypeSignature.FromTypeDefinition(type, ctx),
+            DuneTypeSignature.FromCecilDefinition(type, ctx),
             DuneCustomAttributeContainer.FromCecil(type, ctx),
             type.GenericParameters.Select(genericArg => DuneCustomAttributeContainer.FromCecil(genericArg, ctx)),
 
             type.Methods
-                .Select(method => DuneMethodDefinition.FromMethodDefinition(method, ctx)),
+                .Select(method => DuneMethodDefinition.FromCecilDefinition(method, ctx)),
 
             type.Fields
-                .Select(field => DuneFieldDefinition.FromFieldDefinition(field, ctx)),
+                .Select(field => DuneFieldDefinition.FromCecilDefinition(field, ctx)),
 
             type.Properties
-                .Select(property => DunePropertyDefinition.FromPropertyDefinition(property, ctx)),
+                .Select(property => DunePropertyDefinition.FromCecilDefinition(property, ctx)),
 
             type.Events
-                .Select(@event => DuneEventDefinition.FromEventDefinition(@event, ctx))
+                .Select(@event => DuneEventDefinition.FromCecilDefinition(@event, ctx))
         );
     }
 

@@ -65,7 +65,7 @@ public sealed class DuneMethodReference : IDuneMemberReference, IDuneGenericRefe
         };
     }
 
-    public static DuneMethodReference FromMethodReference(CecilMethodReference methodReference, DuneCecilContext? ctx = null) {
+    public static DuneMethodReference FromCecilReference(CecilMethodReference methodReference, DuneCecilContext? ctx = null) {
         InternalUtils.ThrowIfArgumentNull(methodReference);
 
         ctx ??= new();
@@ -77,15 +77,15 @@ public sealed class DuneMethodReference : IDuneMemberReference, IDuneGenericRefe
 
         if (methodReference is GenericInstanceMethod instanceRef) {
             genericArguments = instanceRef.GenericArguments.Select(
-                arg => DuneTypeReference.FromTypeReference(arg, ctx)
+                arg => DuneTypeReference.FromCecilReference(arg, ctx)
             );
 
             methodReference = instanceRef.ElementMethod;
         }
 
         return ctx.PutMethodReference(methodReference, new(
-            DuneMethodSignature.FromMethodDefinition(methodReference.Resolve(), ctx),
-            DuneTypeSignatureReference.FromTypeReference(methodReference.DeclaringType, ctx),
+            DuneMethodSignature.FromCecilDefinition(methodReference.Resolve(), ctx),
+            DuneTypeSignatureReference.FromCecilReference(methodReference.DeclaringType, ctx),
             [.. genericArguments]
         ));
     }

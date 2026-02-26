@@ -40,12 +40,12 @@ public sealed class DuneEventReference : DuneMemberReference<DuneEventSignature>
         ));
     }
 
-    public static DuneEventReference FromEventDefinition(CecilEventDefinition eventDefinition, DuneCecilContext? ctx = null) {
+    public static DuneEventReference FromCecilReference(CecilEventReference eventReference, DuneCecilContext? ctx = null) {
         ctx ??= new();
 
         return new(
-            DuneEventSignature.FromEventDefinition(eventDefinition, ctx),
-            DuneTypeSignatureReference.FromTypeReference(eventDefinition.DeclaringType, ctx)
+            DuneEventSignature.FromCecilDefinition(eventReference.Resolve(), ctx),
+            DuneTypeSignatureReference.FromCecilReference(eventReference.DeclaringType, ctx)
         );
     }
 

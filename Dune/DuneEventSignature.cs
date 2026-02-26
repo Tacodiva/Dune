@@ -46,17 +46,17 @@ public sealed class DuneEventSignature : DuneMemberSignature, IEquatable<DuneEve
         ));
     }
 
-    public static DuneEventSignature FromEventDefinition(CecilEventDefinition eventDefinition, DuneCecilContext? ctx = null) {
+    public static DuneEventSignature FromCecilDefinition(CecilEventDefinition eventDefinition, DuneCecilContext? ctx = null) {
         ctx ??= new();
 
         return new(
-            DuneAssemblyReference.FromAssemblyDefinition(eventDefinition.Module.Assembly),
-            eventDefinition.DeclaringType == null ? null : DuneTypeSignature.FromTypeDefinition(eventDefinition.DeclaringType, ctx),
+            DuneAssemblyReference.FromCecilDefinition(eventDefinition.Module.Assembly),
+            eventDefinition.DeclaringType == null ? null : DuneTypeSignature.FromCecilDefinition(eventDefinition.DeclaringType, ctx),
             eventDefinition.Name,
-            DuneTypeReference.FromTypeReference(eventDefinition.EventType, ctx),
-            eventDefinition.AddMethod == null ? null : DuneMethodSignature.FromMethodDefinition(eventDefinition.AddMethod, ctx),
-            eventDefinition.InvokeMethod == null ? null : DuneMethodSignature.FromMethodDefinition(eventDefinition.InvokeMethod, ctx),
-            eventDefinition.RemoveMethod == null ? null : DuneMethodSignature.FromMethodDefinition(eventDefinition.RemoveMethod, ctx)
+            DuneTypeReference.FromCecilReference(eventDefinition.EventType, ctx),
+            eventDefinition.AddMethod == null ? null : DuneMethodSignature.FromCecilDefinition(eventDefinition.AddMethod, ctx),
+            eventDefinition.InvokeMethod == null ? null : DuneMethodSignature.FromCecilDefinition(eventDefinition.InvokeMethod, ctx),
+            eventDefinition.RemoveMethod == null ? null : DuneMethodSignature.FromCecilDefinition(eventDefinition.RemoveMethod, ctx)
         );
     }
 

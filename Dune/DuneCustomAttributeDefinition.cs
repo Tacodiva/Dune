@@ -31,7 +31,7 @@ public interface IDuneCustomAttributeArgument {
 
         if (arg.Value is CustomAttributeArgument[] argArray) {
             return new DuneCustomAttributeArgumentArray(
-                (DuneArrayTypeReference)DuneTypeReference.FromTypeReference(arg.Type, ctx),
+                (DuneArrayTypeReference)DuneTypeReference.FromCecilReference(arg.Type, ctx),
                 argArray.Select(arg => DuneCustomAttributeArgumentValue.FromCustomAttributeArgument(arg, ctx))
             );
         }
@@ -97,12 +97,12 @@ public sealed class DuneCustomAttributeArgumentValue : IDuneCustomAttributeArgum
         object value = arg.Value;
 
         if (value is CecilTypeReference valueType)
-            value = DuneTypeReference.FromTypeReference(valueType, ctx);
+            value = DuneTypeReference.FromCecilReference(valueType, ctx);
 
         if (value is CustomAttributeArgument argArg)
             return FromCustomAttributeArgument(argArg, ctx);
 
-        return new((DuneTypeSignatureReference)DuneTypeReference.FromTypeReference(arg.Type, ctx), value);
+        return new((DuneTypeSignatureReference)DuneTypeReference.FromCecilReference(arg.Type, ctx), value);
     }
 
 
@@ -224,7 +224,7 @@ public sealed class DuneCustomAttributeDefinition {
 
     public static DuneCustomAttributeDefinition FromCustomAttribute(CecilCustomAttribute attr, DuneCecilContext? ctx = null) {
         return new(
-            DuneMethodSignature.FromMethodDefinition(attr.Constructor.Resolve(), ctx),
+            DuneMethodSignature.FromCecilDefinition(attr.Constructor.Resolve(), ctx),
             attr.ConstructorArguments.Select(arg => IDuneCustomAttributeArgument.FromCustomAttributeArgument(arg, ctx)),
             attr.Fields.Concat(attr.Properties)
                 .Select(arg => (arg.Name, IDuneCustomAttributeArgument.FromCustomAttributeArgument(arg.Argument, ctx)))

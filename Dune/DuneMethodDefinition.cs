@@ -61,11 +61,11 @@ public sealed class DuneMethodDefinition : DuneDefinition<DuneMethodSignature> {
         };
     }
 
-    public static DuneMethodDefinition FromMethodDefinition(CecilMethodDefinition methodDefinition, DuneCecilContext? ctx = null) {
+    public static DuneMethodDefinition FromCecilDefinition(CecilMethodDefinition methodDefinition, DuneCecilContext? ctx = null) {
         ctx ??= new();
 
         return new(
-            DuneMethodSignature.FromMethodDefinition(methodDefinition, ctx),
+            DuneMethodSignature.FromCecilDefinition(methodDefinition, ctx),
             DuneCustomAttributeContainer.FromCecil(methodDefinition, ctx),
             DuneCustomAttributeContainer.FromCecil(methodDefinition.MethodReturnType, ctx),
             methodDefinition.Parameters.Select(param => DuneCustomAttributeContainer.FromCecil(param, ctx)),

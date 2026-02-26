@@ -71,11 +71,11 @@ public sealed partial class DuneAssembly {
     }
 
     private DuneAssembly(CecilAssemblyDefinition definition, DuneCecilContext? ctx) {
-        Reference = DuneAssemblyReference.FromAssemblyNameReference(definition.Name, ctx);
+        Reference = DuneAssemblyReference.FromCecilReference(definition.Name, ctx);
 
         ReferencedAssemblies = definition.Modules
             .SelectMany(def => def.AssemblyReferences)
-            .Select(refernece => DuneAssemblyReference.FromAssemblyNameReference(refernece, ctx))
+            .Select(refernece => DuneAssemblyReference.FromCecilReference(refernece, ctx))
             .ToArray();
 
         _cecilDefinition = definition;

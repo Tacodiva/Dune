@@ -16,10 +16,10 @@ public sealed class DuneAssemblyDefinition {
         );
     }
 
-    public static DuneAssemblyDefinition FromAssemblyDefinition(CecilAssemblyDefinition assembly, DuneCecilContext? ctx = null) {
+    public static DuneAssemblyDefinition FromCecilDefinition(CecilAssemblyDefinition assembly, DuneCecilContext? ctx = null) {
         return new(
-            DuneAssemblyReference.FromAssemblyDefinition(assembly, ctx),
-            assembly.Modules.SelectMany(module => module.GetTypes()).Select(type => DuneTypeDefinition.FromTypeDefinition(type, ctx)),
+            DuneAssemblyReference.FromCecilDefinition(assembly, ctx),
+            assembly.Modules.SelectMany(module => module.GetTypes()).Select(type => DuneTypeDefinition.FromCecilDefinition(type, ctx)),
             DuneCustomAttributeContainer.FromCecil(assembly, ctx)
         );
     }

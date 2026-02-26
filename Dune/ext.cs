@@ -204,7 +204,7 @@ public static class CecilExt {
         if (definition.GenericParameters.Count != signature.GenericParameterCount)
             return false;
 
-        if (!signature.Assembly.Matches(DuneAssemblyReference.FromAssemblyDefinition(definition.Module.Assembly, ctx)))
+        if (!signature.Assembly.Matches(DuneAssemblyReference.FromCecilDefinition(definition.Module.Assembly, ctx)))
             return false;
 
         return true;
@@ -249,11 +249,11 @@ public static class CecilExt {
         if (definition.Parameters.Count != signature.Parameters.Length)
             return false;
 
-        if (DuneTypeReference.FromTypeReference(definition.ReturnType, ctx) != signature.ReturnType)
+        if (DuneTypeReference.FromCecilReference(definition.ReturnType, ctx) != signature.ReturnType)
             return false;
 
         for (int i = 0; i < definition.Parameters.Count; i++) {
-            if (DuneTypeReference.FromTypeReference(definition.Parameters[i].ParameterType, ctx) != signature.Parameters[i].Type)
+            if (DuneTypeReference.FromCecilReference(definition.Parameters[i].ParameterType, ctx) != signature.Parameters[i].Type)
                 return false;
         }
 
@@ -298,7 +298,7 @@ public static class CecilExt {
         foreach (CecilFieldDefinition test in declaringType.Fields) {
             if (test.Name != field.Name) continue;
 
-            if (DuneTypeReference.FromTypeReference(test.FieldType, ctx) != field.Type)
+            if (DuneTypeReference.FromCecilReference(test.FieldType, ctx) != field.Type)
                 continue;
 
             return test;

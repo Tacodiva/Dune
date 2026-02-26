@@ -414,14 +414,14 @@ public static class DuneScriptCompiler {
             DuneCecilContext cecilCtx = new();
 
             // Sanity check: The compiled assembly's reference should be identical to the refernece Roslyn told us 
-            Debug.Assert(DuneAssemblyReference.FromAssemblyDefinition(cecilAssembly, cecilCtx) == assemblyReference);
+            Debug.Assert(DuneAssemblyReference.FromCecilDefinition(cecilAssembly, cecilCtx) == assemblyReference);
 
             ImmutableArray<DuneSandboxCecilViolation> duneViolations = DuneSandboxEnforcer.CheckCecilAssemblyDefinition(sandboxRules, cecilAssembly, cecilCtx);
             diagnostics.AddRange(duneViolations.Select(violation => new DuneCecilSandboxViolationDiagnostic(violation)));
 
             if (duneViolations.Length != 0) return DuneCompilationResult.FromDiagnostics(diagnostics);
 
-            DuneAssemblyDefinition duneDefiniton = DuneAssemblyDefinition.FromAssemblyDefinition(cecilAssembly, cecilCtx);
+            DuneAssemblyDefinition duneDefiniton = DuneAssemblyDefinition.FromCecilDefinition(cecilAssembly, cecilCtx);
 
             DuneCompilationProcessorContext processorCtx = new(
                 duneDefiniton,

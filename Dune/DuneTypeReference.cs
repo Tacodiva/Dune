@@ -74,7 +74,7 @@ public abstract class DuneTypeReference : IDuneType, IEquatable<DuneTypeReferenc
         return DuneTypeSignatureReference.FromType(type, ctx);
     }
 
-    public static DuneTypeReference FromTypeReference(CecilTypeReference typeReference, DuneCecilContext? ctx = null) {
+    public static DuneTypeReference FromCecilReference(CecilTypeReference typeReference, DuneCecilContext? ctx = null) {
         InternalUtils.ThrowIfArgumentNull(typeReference);
 
         ctx ??= new();
@@ -84,27 +84,27 @@ public abstract class DuneTypeReference : IDuneType, IEquatable<DuneTypeReferenc
         return ctx.PutTypeReference(typeReference, typeReference switch {
             ArrayType arrayTypeReference =>
                 new DuneArrayTypeReference(
-                    FromTypeReference(arrayTypeReference.ElementType, ctx),
+                    FromCecilReference(arrayTypeReference.ElementType, ctx),
                     arrayTypeReference.Dimensions.Count
                 ),
 
             PointerType pointerTypeRefernece =>
                 new DunePointerTypeReference(
-                    FromTypeReference(pointerTypeRefernece.ElementType, ctx)
+                    FromCecilReference(pointerTypeRefernece.ElementType, ctx)
                 ),
 
             FunctionPointerType functionPointerTypeReference =>
                 new DuneFunctionPointerTypeReference(
-                    FromTypeReference(functionPointerTypeReference.ReturnType, ctx),
+                    FromCecilReference(functionPointerTypeReference.ReturnType, ctx),
                     functionPointerTypeReference.Parameters.Select(
-                        param => FromTypeReference(param.ParameterType, ctx)
+                        param => FromCecilReference(param.ParameterType, ctx)
                     ),
                     functionPointerTypeReference.CallingConvention != MethodCallingConvention.Default
                 ),
 
             ByReferenceType refTypeReference =>
                 new DuneRefTypeReference(
-                    FromTypeReference(refTypeReference.ElementType, ctx)
+                    FromCecilReference(refTypeReference.ElementType, ctx)
                 ),
 
             CecilGenericParameter genericParameterReference =>
@@ -112,14 +112,14 @@ public abstract class DuneTypeReference : IDuneType, IEquatable<DuneTypeReferenc
                     GenericParameterType.Method =>
                         new DuneGenericTypeReference(
                             genericParameterReference.Position,
-                            DuneMethodSignature.FromMethodDefinition(genericParameterReference.DeclaringMethod.Resolve(), ctx),
+                            DuneMethodSignature.FromCecilDefinition(genericParameterReference.DeclaringMethod.Resolve(), ctx),
                             DuneGenericSource.Method
                         ),
 
                     GenericParameterType.Type =>
                         new DuneGenericTypeReference(
                             genericParameterReference.Position,
-                            DuneTypeSignature.FromTypeDefinition(genericParameterReference.DeclaringType.Resolve(), ctx),
+                            DuneTypeSignature.FromCecilDefinition(genericParameterReference.DeclaringType.Resolve(), ctx),
                             DuneGenericSource.Type
                         ),
 
@@ -129,9 +129,9 @@ public abstract class DuneTypeReference : IDuneType, IEquatable<DuneTypeReferenc
             // Types like int& modreq(System.Runtime.InteropServices.InAttribute)
             // We throw this information away so just return the element type.
             RequiredModifierType requiredModifierType =>
-                FromTypeReference(requiredModifierType.ElementType, ctx),
+                FromCecilReference(requiredModifierType.ElementType, ctx),
 
-            _ => DuneTypeSignatureReference.FromTypeReference(typeReference, ctx),
+            _ => DuneTypeSignatureReference.FromCecilReference(typeReference, ctx),
         });
     }
 
@@ -595,7 +595,7 @@ public sealed class DuneTypeSignatureReference : DuneTypeReference, IDuneMemberR
         return defRef;
     }
 
-    public static new DuneTypeSignatureReference FromTypeReference(CecilTypeReference typeReference, DuneCecilContext? ctx = null) {
+    public static new DuneTypeSignatureReference FromCecilReference(CecilTypeReference typeReference, DuneCecilContext? ctx = null) {
         InternalUtils.ThrowIfArgumentNull(typeReference);
 
         if (typeReference.IsArray || typeReference.IsPointer || typeReference.IsFunctionPointer || typeReference.IsGenericParameter)
@@ -607,18 +607,18 @@ public sealed class DuneTypeSignatureReference : DuneTypeReference, IDuneMemberR
 
         IEnumerable<DuneTypeReference> genericArguments = [];
 
-        DuneTypeSignature signature = DuneTypeSignature.FromTypeDefinition(typeReference.Resolve());
+        DuneTypeSignature signature = DuneTypeSignature.FromCecilDefinition(typeReference.Resolve());
 
         if (typeReference is GenericInstanceType instanceRef) {
 
-            genericArguments = instanceRef.GenericArguments.Select(param => DuneTypeReference.FromTypeReference(param, ctx));
+            genericArguments = instanceRef.GenericArguments.Select(param => DuneTypeReference.FromCecilReference(param, ctx));
 
             typeReference = instanceRef.ElementType;
 
         } else if (signature.GenericParameterCount != 0) {
 
             // Unbound generic type. We represent this by filling the generic arguments with the generic parameters
-            genericArguments = typeReference.GenericParameters.Select(param => DuneTypeReference.FromTypeReference(param, ctx));
+            genericArguments = typeReference.GenericParameters.Select(param => DuneTypeReference.FromCecilReference(param, ctx));
 
         }
 

@@ -439,7 +439,7 @@ public static class DuneSandboxEnforcer {
     }
 
     private static void CheckCecilTypeReference(CecilTypeReference typeReference, CecilCheckCtx ctx) {
-        ctx.AddViolation(CheckTypeReference(ctx.Rules, DuneTypeReference.FromTypeReference(typeReference, ctx.CecilContext), ctx.Assembly));
+        ctx.AddViolation(CheckTypeReference(ctx.Rules, DuneTypeReference.FromCecilReference(typeReference, ctx.CecilContext), ctx.Assembly));
     }
 
     private static void CheckCecilTypeDefinition(CecilTypeDefinition typeDefinition, CecilCheckCtx ctx) {
@@ -555,7 +555,7 @@ public static class DuneSandboxEnforcer {
     }
 
     private static void CheckCecilFieldReference(CecilFieldReference fieldReference, CecilCheckCtx ctx) {
-        ctx.AddViolation(CheckFieldReference(ctx.Rules, DuneFieldReference.FromFieldReference(fieldReference, ctx.CecilContext), ctx.Assembly));
+        ctx.AddViolation(CheckFieldReference(ctx.Rules, DuneFieldReference.FromCecilReference(fieldReference, ctx.CecilContext), ctx.Assembly));
     }
 
     private static void CheckCecilFieldDefinition(CecilFieldDefinition fieldDefinition, CecilCheckCtx ctx) {
@@ -596,16 +596,16 @@ public static class DuneSandboxEnforcer {
     }
 
     private static void CheckCecilMethodReference(CecilMethodReference methodReference, CecilCheckCtx ctx) {
-        ctx.AddViolation(CheckMethodReference(ctx.Rules, DuneMethodReference.FromMethodReference(methodReference, ctx.CecilContext), ctx.Assembly));
+        ctx.AddViolation(CheckMethodReference(ctx.Rules, DuneMethodReference.FromCecilReference(methodReference, ctx.CecilContext), ctx.Assembly));
     }
 
     private static void CheckCecilAssemblyNameReference(AssemblyNameReference assemblyNameReference, CecilCheckCtx ctx) {
-        ctx.AddViolation(CheckAssemblyReference(ctx.Rules, DuneAssemblyReference.FromAssemblyNameReference(assemblyNameReference, ctx.CecilContext), ctx.Assembly));
+        ctx.AddViolation(CheckAssemblyReference(ctx.Rules, DuneAssemblyReference.FromCecilReference(assemblyNameReference, ctx.CecilContext), ctx.Assembly));
     }
 
     public static ImmutableArray<DuneSandboxCecilViolation> CheckCecilAssemblyDefinition(this IDuneSandboxRules rules, CecilAssemblyDefinition assemblyDefinition, DuneCecilContext? cecilCtx = null) {
 
-        CecilCheckCtx ctx = new(rules, DuneAssemblyReference.FromAssemblyDefinition(assemblyDefinition), [], cecilCtx ?? new(), []);
+        CecilCheckCtx ctx = new(rules, DuneAssemblyReference.FromCecilDefinition(assemblyDefinition), [], cecilCtx ?? new(), []);
 
         CheckCecilDefinitionAttributes(assemblyDefinition, ctx);
 

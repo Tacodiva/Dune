@@ -131,7 +131,7 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
         };
     }
 
-    public static DuneMethodSignature FromMethodDefinition(CecilMethodDefinition methodDefinition, DuneCecilContext? ctx = null) {
+    public static DuneMethodSignature FromCecilDefinition(CecilMethodDefinition methodDefinition, DuneCecilContext? ctx = null) {
         InternalUtils.ThrowIfArgumentNull(methodDefinition);
 
         ctx ??= new();
@@ -141,15 +141,15 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
         InternalUtils.Assert((methodDefinition.Name == ConstructorMethodName) == methodDefinition.IsConstructor);
 
         return ctx.PutMethodSignature(methodDefinition, new(
-            DuneAssemblyReference.FromAssemblyDefinition(methodDefinition.Module.Assembly, ctx),
+            DuneAssemblyReference.FromCecilDefinition(methodDefinition.Module.Assembly, ctx),
             methodDefinition.DeclaringType == null ?
-                null : DuneTypeSignature.FromTypeDefinition(methodDefinition.DeclaringType, ctx),
+                null : DuneTypeSignature.FromCecilDefinition(methodDefinition.DeclaringType, ctx),
             methodDefinition.Name,
             methodDefinition.GenericParameters.Select(param => param.Name),
 
             (method) => {
                 ctx.PutMethodSignature(methodDefinition, method);
-                return DuneTypeReference.FromTypeReference(methodDefinition.ReturnType, ctx);
+                return DuneTypeReference.FromCecilReference(methodDefinition.ReturnType, ctx);
             },
 
             (method) => {
@@ -157,7 +157,7 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
                 return methodDefinition.Parameters.Select(
                     param => new DuneMethodParameter(
                         param.Name,
-                        DuneTypeReference.FromTypeReference(param.ParameterType, ctx)
+                        DuneTypeReference.FromCecilReference(param.ParameterType, ctx)
                     )
                 );
             }

@@ -41,17 +41,17 @@ public sealed class DuneTypeSignature : IDuneType, IDuneMemberSignature, IDuneGe
         ));
     }
 
-    public static DuneTypeSignature FromTypeDefinition(CecilTypeDefinition typeDefinition, DuneCecilContext? ctx = null) {
+    public static DuneTypeSignature FromCecilDefinition(CecilTypeDefinition typeDefinition, DuneCecilContext? ctx = null) {
         InternalUtils.ThrowIfArgumentNull(typeDefinition);
 
         ctx ??= new();
         if (ctx.TryGetTypeSignature(typeDefinition, out var cached))
             return cached;
 
-        DuneTypeSignature? declaringType = typeDefinition.DeclaringType != null ? FromTypeDefinition(typeDefinition.DeclaringType) : null;
+        DuneTypeSignature? declaringType = typeDefinition.DeclaringType != null ? FromCecilDefinition(typeDefinition.DeclaringType) : null;
 
         return ctx.PutTypeSignature(typeDefinition, new(
-            DuneAssemblyReference.FromAssemblyDefinition(typeDefinition.Module.Assembly, ctx),
+            DuneAssemblyReference.FromCecilDefinition(typeDefinition.Module.Assembly, ctx),
 
             // In Cecil, the "Namespace" is only present in the base declaring type, so if this is a nested
             //  type we grab the namespace from our parent type.

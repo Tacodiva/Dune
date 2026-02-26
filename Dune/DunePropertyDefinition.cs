@@ -18,11 +18,11 @@ public sealed class DunePropertyDefinition : DuneDefinition<DunePropertySignatur
         );
     }
 
-    public static DunePropertyDefinition FromPropertyDefinition(CecilPropertyDefinition propertyDefinition, DuneCecilContext? ctx = null) {
+    public static DunePropertyDefinition FromCecilDefinition(CecilPropertyDefinition propertyDefinition, DuneCecilContext? ctx = null) {
         ctx ??= new();
 
         return new(
-            DunePropertySignature.FromPropertyDefinition(propertyDefinition, ctx),
+            DunePropertySignature.FromCecilDefinition(propertyDefinition, ctx),
             DuneCustomAttributeContainer.FromCecil(propertyDefinition, ctx)
         );
     }
