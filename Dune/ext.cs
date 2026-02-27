@@ -86,7 +86,6 @@ public static class ReflectionExt {
     }
 
     public static MethodBase? TryGetMethod(this Assembly assembly, DuneMethodSignature method, DuneReflectionContext? ctx = null) {
-        if (method.DeclaringType == null) return null;
         Type? declaringType = TryGetType(assembly, method.DeclaringType, ctx);
         if (declaringType == null) return null;
 
@@ -114,7 +113,6 @@ public static class ReflectionExt {
     }
 
     public static FieldInfo? TryGetField(this Assembly assembly, DuneFieldSignature field, DuneReflectionContext? ctx = null) {
-        if (field.DeclaringType == null) return null;
         Type? declaringType = TryGetType(assembly, field.DeclaringType, ctx);
         if (declaringType == null) return null;
 
@@ -138,7 +136,6 @@ public static class ReflectionExt {
     }
 
     public static PropertyInfo? TryGetProperty(this Assembly assembly, DunePropertySignature property, DuneReflectionContext? ctx = null) {
-        if (property.DeclaringType == null) return null;
         Type? declaringType = TryGetType(assembly, property.DeclaringType, ctx);
         if (declaringType == null) return null;
 
@@ -163,7 +160,6 @@ public static class ReflectionExt {
     }
 
     public static EventInfo? TryGetEvent(this Assembly assembly, DuneEventSignature @event, DuneReflectionContext? ctx = null) {
-        if (@event.DeclaringType == null) return null;
         Type? declaringType = TryGetType(assembly, @event.DeclaringType, ctx);
         if (declaringType == null) return null;
 
@@ -195,7 +191,7 @@ public static class CecilExt {
         if (definition.Name != signature.RawName)
             return false;
 
-        string? signatureNamespace = signature.DeclaringType == null ? null : signature.Namespace;
+        string? signatureNamespace = signature.HasDeclaringType ? signature.Namespace : null;
         string? definitionNamespace = string.IsNullOrWhiteSpace(definition.Namespace) ? null : definition.Namespace;
 
         if (signatureNamespace != definitionNamespace)
@@ -212,22 +208,22 @@ public static class CecilExt {
 
     public static CecilTypeDefinition? TryGetTypeDefinition(this CecilModuleDefinition module, DuneTypeSignature type, DuneCecilContext? ctx = null) {
 
-        if (type.DeclaringType == null) {
-            // If the type doesn't have a declaring type, it should be in the module's root.
-            foreach (CecilTypeDefinition test in module.Types) {
-                if (IsMatch(test, type, ctx))
-                    return test;
-            }
-
-            return null;
-        } else {
-            // Otherwise it'll be in the declaring type.
+        if (type.HasDeclaringType) {
+            // If the type has a declaring type, we can find it inside the declaring type.
             CecilTypeDefinition? declaringType = TryGetTypeDefinition(module, type.DeclaringType, ctx);
 
             if (declaringType == null)
                 return null;
 
             foreach (CecilTypeDefinition test in declaringType.NestedTypes) {
+                if (IsMatch(test, type, ctx))
+                    return test;
+            }
+
+            return null;
+        } else {
+            // Otherwise, it should be in the module's root.
+            foreach (CecilTypeDefinition test in module.Types) {
                 if (IsMatch(test, type, ctx))
                     return test;
             }
@@ -269,8 +265,6 @@ public static class CecilExt {
     }
 
     public static CecilMethodDefinition? TryGetMethodDefinition(this CecilModuleDefinition module, DuneMethodSignature method, DuneCecilContext? ctx = null) {
-
-        if (method.DeclaringType == null) return null;
         CecilTypeDefinition? declaringType = TryGetTypeDefinition(module, method.DeclaringType, ctx);
         if (declaringType == null) return null;
 
@@ -291,7 +285,6 @@ public static class CecilExt {
     }
 
     public static CecilFieldDefinition? TryGetFieldDefinition(this CecilModuleDefinition module, DuneFieldSignature field, DuneCecilContext? ctx = null) {
-        if (field.DeclaringType == null) return null;
         CecilTypeDefinition? declaringType = TryGetTypeDefinition(module, field.DeclaringType, ctx);
         if (declaringType == null) return null;
 
@@ -316,7 +309,6 @@ public static class CecilExt {
     }
 
     public static CecilPropertyDefinition? TryGetPropertyDefinition(this CecilModuleDefinition module, DunePropertySignature property, DuneCecilContext? ctx = null) {
-        if (property.DeclaringType == null) return null;
         CecilTypeDefinition? declaringType = TryGetTypeDefinition(module, property.DeclaringType, ctx);
         if (declaringType == null) return null;
 
@@ -344,7 +336,6 @@ public static class CecilExt {
     }
 
     public static CecilEventDefinition? TryGetEventDefinition(this CecilModuleDefinition module, DuneEventSignature @event, DuneCecilContext? ctx = null) {
-        if (@event.DeclaringType == null) return null;
         CecilTypeDefinition? declaringType = TryGetTypeDefinition(module, @event.DeclaringType, ctx);
         if (declaringType == null) return null;
 

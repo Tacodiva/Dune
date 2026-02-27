@@ -104,8 +104,8 @@ partial class DuneSandboxRules {
 
             if (index == -1) {
                 int assemblyReference = GetAssemblyReference(type.Assembly);
-                int declaringTypeReference = type.DeclaringType == null ? 0 :
-                     (GetTypeDefinitionReference(type.DeclaringType) + 1);
+                int declaringTypeReference = type.HasDeclaringType ?
+                     (GetTypeDefinitionReference(type.DeclaringType) + 1) : 0;
 
                 index = types.Count;
                 types.Add(type);

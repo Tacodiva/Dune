@@ -465,7 +465,7 @@ public static class DuneScriptCompiler {
             },
             (typeof(string), "sourcePath"),
             (typeof(int), "sourceLine"),
-            (typeof(int), "sourceCharacte")
+            (typeof(int), "sourceCharacter")
         );
 
         void AddSourceInfo(CecilCustomAttributeProvider dst, RoslynLocation location) {

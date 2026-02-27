@@ -26,19 +26,18 @@ public sealed class DuneFieldSignature : DuneMemberSignature, IEquatable<DuneFie
         if (ctx.TryGetFieldSignature(fieldInfo, out var cached))
             return cached;
 
-        Type? declaringType = fieldInfo.DeclaringType;
+        Type declaringType = fieldInfo.DeclaringType ??
+            throw new NotSupportedException($"Fields without a declaring type are not supported."); ;
 
-        if (declaringType != null) {
-            if (declaringType.IsGenericType && !declaringType.IsGenericTypeDefinition) {
-                declaringType = declaringType.GetGenericTypeDefinition();
-                fieldInfo = declaringType.GetField(fieldInfo.Name, DuneReflectionContext.EverythingFlags)!;
-                InternalUtils.Assert(fieldInfo != null, "Field not found on generic type definition.");
-            }
+        if (declaringType.IsGenericType && !declaringType.IsGenericTypeDefinition) {
+            declaringType = declaringType.GetGenericTypeDefinition();
+            fieldInfo = declaringType.GetField(fieldInfo.Name, DuneReflectionContext.EverythingFlags)!;
+            InternalUtils.Assert(fieldInfo != null, "Field not found on generic type definition.");
         }
 
         return ctx.PutFieldSignature(fieldInfo, new(
             DuneAssemblyReference.FromAssembly(fieldInfo.Module.Assembly, ctx),
-            declaringType == null ? null : DuneTypeSignature.FromType(declaringType, ctx),
+            DuneTypeSignature.FromType(declaringType, ctx),
             fieldInfo.Name,
             DuneTypeReference.FromType(fieldInfo.FieldType, ctx)
         ));
@@ -64,7 +63,7 @@ public sealed class DuneFieldSignature : DuneMemberSignature, IEquatable<DuneFie
 
         return ctx.PutFieldSignature(fieldSymbol, new(
             DuneAssemblyReference.FromSymbol(fieldSymbol.ContainingAssembly, ctx),
-            fieldSymbol.ContainingType == null ? null : DuneTypeSignature.FromSymbol(fieldSymbol.ContainingType, ctx),
+            DuneTypeSignature.FromSymbol(fieldSymbol.ContainingType, ctx),
             fieldSymbol.MetadataName,
             DuneTypeReference.FromSymbol(fieldSymbol.Type, fieldSymbol.RefKind, ctx)
         ));
@@ -72,7 +71,7 @@ public sealed class DuneFieldSignature : DuneMemberSignature, IEquatable<DuneFie
 
     public DuneTypeReference Type { get; }
 
-    internal DuneFieldSignature(DuneAssemblyReference assembly, DuneTypeSignature? declaringType, string name, DuneTypeReference type): base(name, declaringType, assembly) {
+    internal DuneFieldSignature(DuneAssemblyReference assembly, DuneTypeSignature declaringType, string name, DuneTypeReference type) : base(name, declaringType, assembly) {
         Type = type;
     }
 

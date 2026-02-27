@@ -49,9 +49,9 @@ public interface IDuneGenericReference : IDuneGenericSymbol {
     public ImmutableArray<DuneTypeReference> GenericArguments { get; }
 }
 
-public abstract class DuneMemberSignature(string name, DuneTypeSignature? declaringType, DuneAssemblyReference assembly) : IDuneMemberSignature {
+public abstract class DuneMemberSignature(string name, DuneTypeSignature declaringType, DuneAssemblyReference assembly) : IDuneMemberSignature {
     public string Name { get; } = name;
-    public DuneTypeSignature? DeclaringType { get; } = declaringType;
+    public DuneTypeSignature DeclaringType { get; } = declaringType;
     public DuneAssemblyReference Assembly { get; } = assembly;
 
     IDuneType? IDuneMember.DeclaringType => DeclaringType;

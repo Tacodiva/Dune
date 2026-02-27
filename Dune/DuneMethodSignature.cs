@@ -60,6 +60,9 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
         if (ctx.TryGetMethodSignature(methodInfo, out var cached))
             return cached;
 
+        Type declaringType = methodInfo.DeclaringType ??
+            throw new NotSupportedException($"Methods without a declaring type are not supported.");
+        
         methodInfo = GetGenericMethodDefinition(methodInfo);
 
         if (ctx.TryGetMethodSignature(methodInfo, out cached))
@@ -69,8 +72,7 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
 
         return ctx.PutMethodSignature(methodInfo, new(
             DuneAssemblyReference.FromAssembly(methodInfo.Module.Assembly, ctx),
-            methodInfo.DeclaringType == null ?
-                null : DuneTypeSignature.FromType(methodInfo.DeclaringType, ctx),
+            DuneTypeSignature.FromType(declaringType, ctx),
             methodInfo.Name,
             methodInfo.GetGenericArguments().Select(arg => arg.Name),
 
@@ -104,8 +106,7 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
 
         return ctx.PutMethodSignature(constructorInfo, new(
             DuneAssemblyReference.FromAssembly(constructorInfo.Module.Assembly, ctx),
-            constructorInfo.DeclaringType == null ?
-                null : DuneTypeSignature.FromType(constructorInfo.DeclaringType, ctx),
+            DuneTypeSignature.FromType(constructorInfo.DeclaringType!, ctx),
             constructorInfo.Name, [], (method) => null,
 
             (method) => {
@@ -142,8 +143,7 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
 
         return ctx.PutMethodSignature(methodDefinition, new(
             DuneAssemblyReference.FromCecilDefinition(methodDefinition.Module.Assembly, ctx),
-            methodDefinition.DeclaringType == null ?
-                null : DuneTypeSignature.FromCecilDefinition(methodDefinition.DeclaringType, ctx),
+            DuneTypeSignature.FromCecilDefinition(methodDefinition.DeclaringType, ctx),
             methodDefinition.Name,
             methodDefinition.GenericParameters.Select(param => param.Name),
 
@@ -175,8 +175,7 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
 
         return ctx.PutMethodSignature(methodSymbol, new(
             DuneAssemblyReference.FromSymbol(methodSymbol.ContainingAssembly, ctx),
-            methodSymbol.ContainingType == null ?
-                null : DuneTypeSignature.FromSymbol(methodSymbol.ContainingType, ctx),
+            DuneTypeSignature.FromSymbol(methodSymbol.ContainingType, ctx),
             methodSymbol.MetadataName,
             methodSymbol.TypeParameters.Select(param => param.Name),
 
@@ -207,7 +206,7 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
 
     public DuneAssemblyReference Assembly { get; }
 
-    public DuneTypeSignature? DeclaringType { get; }
+    public DuneTypeSignature DeclaringType { get; }
     public string Name { get; }
     public ImmutableArray<string> GenericParameterNames { get; }
     public DuneTypeReference? ReturnType { get; }
@@ -223,7 +222,7 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
 
     internal DuneMethodSignature(
         DuneAssemblyReference assembly,
-        DuneTypeSignature? declaringType,
+        DuneTypeSignature declaringType,
         string name,
         IEnumerable<string> genericParamNames,
         Func<DuneMethodSignature, DuneTypeReference?> returnTypeDelegate,

@@ -26,19 +26,18 @@ public sealed class DunePropertySignature : DuneMemberSignature, IEquatable<Dune
         if (ctx.TryGetPropertySignature(propertyInfo, out var cached))
             return cached;
 
-        Type? declaringType = propertyInfo.DeclaringType;
+        Type declaringType = propertyInfo.DeclaringType ??
+            throw new NotSupportedException($"Properties without a declaring type are not supported.");
 
-        if (declaringType != null) {
-            if (declaringType.IsGenericType && !declaringType.IsGenericTypeDefinition) {
-                declaringType = declaringType.GetGenericTypeDefinition();
-                propertyInfo = declaringType.GetProperty(propertyInfo.Name, DuneReflectionContext.EverythingFlags)!;
-                InternalUtils.Assert(propertyInfo != null, "Property not found on generic type definition.");
-            }
+        if (declaringType.IsGenericType && !declaringType.IsGenericTypeDefinition) {
+            declaringType = declaringType.GetGenericTypeDefinition();
+            propertyInfo = declaringType.GetProperty(propertyInfo.Name, DuneReflectionContext.EverythingFlags)!;
+            InternalUtils.Assert(propertyInfo != null, "Property not found on generic type definition.");
         }
 
         return ctx.PutPropertySignature(propertyInfo, new(
             DuneAssemblyReference.FromAssembly(propertyInfo.Module.Assembly, ctx),
-            declaringType == null ? null : DuneTypeSignature.FromType(declaringType, ctx),
+            DuneTypeSignature.FromType(declaringType, ctx),
             propertyInfo.Name,
             DuneTypeReference.FromType(propertyInfo.PropertyType, ctx),
             propertyInfo.GetMethod == null ? null : DuneMethodSignature.FromMethodInfo(propertyInfo.GetMethod, ctx),
@@ -51,7 +50,7 @@ public sealed class DunePropertySignature : DuneMemberSignature, IEquatable<Dune
 
         return new(
             DuneAssemblyReference.FromCecilDefinition(propertyDefinition.Module.Assembly),
-            propertyDefinition.DeclaringType == null ? null : DuneTypeSignature.FromCecilDefinition(propertyDefinition.DeclaringType, ctx),
+            DuneTypeSignature.FromCecilDefinition(propertyDefinition.DeclaringType, ctx),
             propertyDefinition.Name,
             DuneTypeReference.FromCecilReference(propertyDefinition.PropertyType, ctx),
             propertyDefinition.GetMethod == null ? null : DuneMethodSignature.FromCecilDefinition(propertyDefinition.GetMethod, ctx),
@@ -66,7 +65,7 @@ public sealed class DunePropertySignature : DuneMemberSignature, IEquatable<Dune
 
         return ctx.PutPropertySignature(propertySymbol, new(
             DuneAssemblyReference.FromSymbol(propertySymbol.ContainingAssembly, ctx),
-            propertySymbol.ContainingType == null ? null : DuneTypeSignature.FromSymbol(propertySymbol.ContainingType, ctx),
+            DuneTypeSignature.FromSymbol(propertySymbol.ContainingType, ctx),
             propertySymbol.MetadataName,
             DuneTypeReference.FromSymbol(propertySymbol.Type, propertySymbol.RefKind, ctx),
             propertySymbol.GetMethod == null ? null : DuneMethodSignature.FromSymbol(propertySymbol.GetMethod, ctx),
@@ -79,7 +78,7 @@ public sealed class DunePropertySignature : DuneMemberSignature, IEquatable<Dune
     public DuneMethodSignature? GetMethod { get; }
     public DuneMethodSignature? SetMethod { get; }
 
-    private DunePropertySignature(DuneAssemblyReference assembly, DuneTypeSignature? declaringType, string name, DuneTypeReference type,
+    private DunePropertySignature(DuneAssemblyReference assembly, DuneTypeSignature declaringType, string name, DuneTypeReference type,
         DuneMethodSignature? getMethod, DuneMethodSignature? setMethod) : base(name, declaringType, assembly) {
         Type = type;
 

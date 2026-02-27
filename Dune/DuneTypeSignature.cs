@@ -3,6 +3,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -100,6 +101,9 @@ public sealed class DuneTypeSignature : IDuneType, IDuneMemberSignature, IDuneGe
 
     public DuneTypeSignature? DeclaringType { get; }
 
+    [MemberNotNullWhen(true, nameof(DeclaringType))]
+    public bool HasDeclaringType => DeclaringType != null;
+
     public ImmutableArray<string> GenericParameterNames { get; }
     public bool HasGenericParameters => !GenericParameterNames.IsEmpty;
     public int GenericParameterCount => GenericParameterNames.Length;
@@ -116,8 +120,8 @@ public sealed class DuneTypeSignature : IDuneType, IDuneMemberSignature, IDuneGe
         GenericParameterNames = [.. genericParamNames];
         DeclaringType = declaringType;
 
-        InternalUtils.Assert(DeclaringType == null || Namespace == DeclaringType.Namespace);
-        InternalUtils.Assert(DeclaringType == null || Assembly == DeclaringType.Assembly);
+        InternalUtils.Assert(!HasDeclaringType || Namespace == DeclaringType.Namespace);
+        InternalUtils.Assert(!HasDeclaringType || Assembly == DeclaringType.Assembly);
     }
 
     public bool IsDeclaringTypeOf(DuneTypeSignature other) {

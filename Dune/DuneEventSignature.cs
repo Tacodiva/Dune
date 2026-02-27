@@ -25,19 +25,18 @@ public sealed class DuneEventSignature : DuneMemberSignature, IEquatable<DuneEve
         if (ctx.TryGetEventSignature(eventInfo, out var cached))
             return cached;
 
-        Type? declaringType = eventInfo.DeclaringType;
+        Type declaringType = eventInfo.DeclaringType ??
+            throw new NotSupportedException($"Events without a declaring type are not supported.");
 
-        if (declaringType != null) {
-            if (declaringType.IsGenericType && !declaringType.IsGenericTypeDefinition) {
-                declaringType = declaringType.GetGenericTypeDefinition();
-                eventInfo = declaringType.GetEvent(eventInfo.Name, DuneReflectionContext.EverythingFlags)!;
-                InternalUtils.Assert(eventInfo != null, "Event not found on generic type definition.");
-            }
+        if (declaringType.IsGenericType && !declaringType.IsGenericTypeDefinition) {
+            declaringType = declaringType.GetGenericTypeDefinition();
+            eventInfo = declaringType.GetEvent(eventInfo.Name, DuneReflectionContext.EverythingFlags)!;
+            InternalUtils.Assert(eventInfo != null, "Event not found on generic type definition.");
         }
 
         return ctx.PutEventSignature(eventInfo, new(
             DuneAssemblyReference.FromAssembly(eventInfo.Module.Assembly, ctx),
-            declaringType == null ? null : DuneTypeSignature.FromType(declaringType, ctx),
+            DuneTypeSignature.FromType(declaringType, ctx),
             eventInfo.Name,
             eventInfo.EventHandlerType == null ? null : DuneTypeReference.FromType(eventInfo.EventHandlerType, ctx),
             eventInfo.AddMethod == null ? null : DuneMethodSignature.FromMethodInfo(eventInfo.AddMethod, ctx),
@@ -51,7 +50,7 @@ public sealed class DuneEventSignature : DuneMemberSignature, IEquatable<DuneEve
 
         return new(
             DuneAssemblyReference.FromCecilDefinition(eventDefinition.Module.Assembly),
-            eventDefinition.DeclaringType == null ? null : DuneTypeSignature.FromCecilDefinition(eventDefinition.DeclaringType, ctx),
+            DuneTypeSignature.FromCecilDefinition(eventDefinition.DeclaringType, ctx),
             eventDefinition.Name,
             DuneTypeReference.FromCecilReference(eventDefinition.EventType, ctx),
             eventDefinition.AddMethod == null ? null : DuneMethodSignature.FromCecilDefinition(eventDefinition.AddMethod, ctx),
@@ -67,7 +66,7 @@ public sealed class DuneEventSignature : DuneMemberSignature, IEquatable<DuneEve
 
         return ctx.PutEventSignature(eventSymbol, new(
             DuneAssemblyReference.FromSymbol(eventSymbol.ContainingAssembly, ctx),
-            eventSymbol.ContainingType == null ? null : DuneTypeSignature.FromSymbol(eventSymbol.ContainingType, ctx),
+            DuneTypeSignature.FromSymbol(eventSymbol.ContainingType, ctx),
             eventSymbol.MetadataName,
             eventSymbol.Type == null ? null : DuneTypeReference.FromSymbol(eventSymbol.Type, false, ctx),
             eventSymbol.AddMethod == null ? null : DuneMethodSignature.FromSymbol(eventSymbol.AddMethod, ctx),
@@ -82,7 +81,7 @@ public sealed class DuneEventSignature : DuneMemberSignature, IEquatable<DuneEve
     public DuneMethodSignature? RaiseMethod { get; }
     public DuneMethodSignature? RemoveMethod { get; }
 
-    private DuneEventSignature(DuneAssemblyReference assembly, DuneTypeSignature? declaringType, string name, DuneTypeReference? type,
+    private DuneEventSignature(DuneAssemblyReference assembly, DuneTypeSignature declaringType, string name, DuneTypeReference? type,
         DuneMethodSignature? addMethod, DuneMethodSignature? raiseMethod, DuneMethodSignature? removeMethod) : base(name, declaringType, assembly) {
         Type = type;
         AddMethod = addMethod;

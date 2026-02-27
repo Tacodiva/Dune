@@ -38,12 +38,10 @@ public sealed class DuneSandboxAssemblyRules {
     }
 
     public bool IsMethodAllowed(DuneMethodSignature method) {
-        if (method.DeclaringType == null) return false;
         return TryGetTypeRules(method.DeclaringType)?.IsMethodAllowed(method) ?? false;
     }
 
     public bool IsFieldAllowed(DuneFieldSignature field) {
-        if (field.DeclaringType == null) return false;
         return TryGetTypeRules(field.DeclaringType)?.IsFieldAllowed(field) ?? false;
     }
 
@@ -403,9 +401,6 @@ public sealed partial class DuneSandboxRules : IDuneSandboxRules {
         => AllowMethod(DuneMethodSignature.FromMethodBase(method, ctx ?? DefaultReflectionCtx), allowDependencies);
 
     public void AllowMethod(DuneMethodSignature method, bool allowDependencies = true) {
-        if (method.DeclaringType == null)
-            throw new NotSupportedException("Methods without a declaring type are not supported.");
-
         if (allowDependencies) {
             AllowAssembly(method.Assembly).AllowType(method.DeclaringType, true).AllowMethod(method);
         } else {
@@ -414,9 +409,6 @@ public sealed partial class DuneSandboxRules : IDuneSandboxRules {
     }
 
     public void BlockMethod(DuneMethodSignature method) {
-        if (method.DeclaringType == null)
-            throw new NotSupportedException("Methods without a declaring type are not supported.");
-
         TryGetAssemblyRules(method.Assembly)?.TryGetTypeRules(method.DeclaringType)?.BlockMethod(method);
     }
 
@@ -434,9 +426,6 @@ public sealed partial class DuneSandboxRules : IDuneSandboxRules {
         => AllowField(DuneFieldSignature.FromFieldInfo(field, ctx), allowDependencies);
 
     public void AllowField(DuneFieldSignature field, bool allowDependencies = true) {
-        if (field.DeclaringType == null)
-            throw new NotSupportedException("Fields without a declaring type are not supported.");
-
         if (allowDependencies) {
             AllowAssembly(field.Assembly).AllowType(field.DeclaringType, true).AllowField(field);
         } else {
@@ -445,9 +434,6 @@ public sealed partial class DuneSandboxRules : IDuneSandboxRules {
     }
 
     public void BlockField(DuneFieldSignature field) {
-        if (field.DeclaringType == null)
-            throw new NotSupportedException("Fields without a declaring type are not supported.");
-
         TryGetAssemblyRules(field.Assembly)?.TryGetTypeRules(field.DeclaringType)?.BlockField(field);
     }
 
