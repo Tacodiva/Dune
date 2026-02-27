@@ -62,7 +62,7 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
 
         Type declaringType = methodInfo.DeclaringType ??
             throw new NotSupportedException($"Methods without a declaring type are not supported.");
-        
+
         methodInfo = GetGenericMethodDefinition(methodInfo);
 
         if (ctx.TryGetMethodSignature(methodInfo, out cached))
@@ -230,24 +230,41 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
     ) {
         Assembly = assembly;
         DeclaringType = declaringType;
-        GenericParameterNames = [.. genericParamNames];
         Name = name;
+        GenericParameterNames = genericParamNames.ToImmutableArray();
+        Parameters = parametersDelegate(this).ToImmutableArray();
+
         DuneTypeReference? returnType = returnTypeDelegate(this);
         ReturnType = (returnType?.IsVoid ?? true) ? null : returnType;
-        Parameters = [.. parametersDelegate(this)];
+
+        if (IsConstructor) {
+            InternalUtils.Assert(ReturnType == null);
+
+            DuneTypeReference[] declaringTypeGenerics = new DuneTypeReference[DeclaringType.GenericParameterCount];
+            for (int i = 0; i < declaringTypeGenerics.Length; i++)
+                declaringTypeGenerics[i] = DeclaringType.CreateGenericParameterReference(i);
+
+            ReturnType = DeclaringType.CreateReference(declaringTypeGenerics);
+        }
+
     }
 
     public DuneMethodReference CreateReference(DuneTypeSignatureReference declaringTypeReference)
         => CreateReference(declaringTypeReference, [.. Enumerable.Repeat<DuneTypeReference>(DuneUnknownTypeReference.Instance, GenericParameterCount)]);
 
-    public DuneMethodReference CreateReference(DuneTypeSignatureReference declaringTypeReference, params ImmutableArray<DuneTypeReference> genericArgs) {
+    public DuneMethodReference CreateReference(DuneTypeSignatureReference declaringTypeReference, params IReadOnlyCollection<DuneTypeReference> genericArgs) {
         if (!declaringTypeReference.Signature.Equals(DeclaringType))
             throw new ArgumentException($"{nameof(declaringTypeReference)} must reference the same type definition as the method's declaring type.");
 
-        if (genericArgs.Length != GenericParameterCount)
-            throw new ArgumentException($"Wrong number of generic arguments. Expected {GenericParameterCount} got {genericArgs.Length}.");
+        if (genericArgs.Count != GenericParameterCount)
+            throw new ArgumentException($"Wrong number of generic arguments. Expected {GenericParameterCount} got {genericArgs.Count}.");
 
         return new(this, declaringTypeReference, genericArgs);
+    }
+
+    public DuneGenericTypeReference CreateGenericParameterReference(int index) {
+        // TODO Check range
+        return new(index, this, DuneGenericSource.Method);
     }
 
     public override string ToString()

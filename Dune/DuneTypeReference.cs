@@ -498,7 +498,7 @@ public sealed class DuneFunctionPointerTypeReference : DuneTypeReference, IEquat
 
     internal DuneFunctionPointerTypeReference(DuneTypeReference? returnType, IEnumerable<DuneTypeReference> parameters, bool isUnmanaged) {
         ReturnType = returnType == null || returnType.IsVoid ? null : returnType;
-        Parameters = [.. parameters];
+        Parameters = parameters.ToImmutableArray();
         IsUnmanaged = isUnmanaged;
         IsResolved = (ReturnType?.IsResolved ?? true) && !Parameters.Any(arg => !arg.IsResolved);
     }
@@ -587,7 +587,7 @@ public sealed class DuneTypeSignatureReference : DuneTypeReference, IDuneMemberR
 
         DuneTypeSignatureReference defRef = new(
             DuneTypeSignature.FromType(type, ctx),
-            [.. type.GetGenericArguments().Select(arg => DuneTypeReference.FromType(arg, ctx))]
+            type.GetGenericArguments().Select(arg => DuneTypeReference.FromType(arg, ctx))
         );
 
         ctx.PutTypeReference(type, defRef);
@@ -622,7 +622,7 @@ public sealed class DuneTypeSignatureReference : DuneTypeReference, IDuneMemberR
 
         }
 
-        DuneTypeSignatureReference defRef = new(signature, [.. genericArguments]);
+        DuneTypeSignatureReference defRef = new(signature, genericArguments);
 
         ctx.PutTypeReference(typeReference, defRef);
 
@@ -651,7 +651,7 @@ public sealed class DuneTypeSignatureReference : DuneTypeReference, IDuneMemberR
         InternalUtils.Assert(typeArguments.Count() == typeSignature.GenericParameterCount);
 
         DuneTypeSignatureReference defRef = new(
-            typeSignature, [.. typeArguments.Select(arg => FromSymbol(arg, false, ctx))]
+            typeSignature, typeArguments.Select(arg => FromSymbol(arg, false, ctx))
         );
 
         ctx.PutTypeReference(namedTypeSymbol, false, defRef);
@@ -676,17 +676,16 @@ public sealed class DuneTypeSignatureReference : DuneTypeReference, IDuneMemberR
     public static DuneTypeSignatureReference Void { get; } = DuneTypeSignature.Void.CreateReference();
     public static DuneTypeSignatureReference Object { get; } = DuneTypeSignature.Object.CreateReference();
 
-    internal DuneTypeSignatureReference(DuneTypeSignature signature, ImmutableArray<DuneTypeReference> genericArgs) {
-        InternalUtils.Assert(genericArgs.Length == signature.GenericParameterCount);
-
+    internal DuneTypeSignatureReference(DuneTypeSignature signature, IEnumerable<DuneTypeReference> genericArgs) {
         Signature = signature;
-        GenericArguments = [.. genericArgs];
+        GenericArguments = genericArgs.ToImmutableArray();
         IsResolved = !GenericArguments.Any(arg => !arg.IsResolved);
 
-        if (signature.DeclaringType != null) {
-            DeclaringType = new(signature.DeclaringType, genericArgs[..signature.DeclaringType.GenericParameterCount]);
-        }
+        InternalUtils.Assert(GenericArguments.Length == signature.GenericParameterCount);
 
+        if (signature.DeclaringType != null) {
+            DeclaringType = new(signature.DeclaringType, genericArgs.Take(signature.DeclaringType.GenericParameterCount));
+        }
     }
 
     protected internal override DuneTypeReference? TryResolve(DuneTypeSignatureReference? declaringType, DuneMethodReference? declaringMethod, bool force) {
@@ -708,7 +707,7 @@ public sealed class DuneTypeSignatureReference : DuneTypeReference, IDuneMemberR
 
         if (!didResolveAny) return null;
 
-        return new DuneTypeSignatureReference(Signature, [.. resolvedGenerics]);
+        return new DuneTypeSignatureReference(Signature, resolvedGenerics);
     }
 
 

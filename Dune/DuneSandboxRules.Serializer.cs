@@ -236,7 +236,9 @@ partial class DuneSandboxRules {
 
                     line.DuneWrite7BitEncodedInt(GetTypeDefinitionReference(allowedMethod.DeclaringType!));
                     line.Write(allowedMethod.Name);
-                    AppendTypeReference(line, allowedMethod.ReturnType);
+                    
+                    // Skip writing the return type for constructors as the return type is inferred when we deserialize.
+                    AppendTypeReference(line, allowedMethod.IsConstructor ? null : allowedMethod.ReturnType);
 
                     line.DuneWrite7BitEncodedInt(allowedMethod.Parameters.Length);
 
@@ -340,7 +342,7 @@ partial class DuneSandboxRules {
                             genericArgs[i] = ReadTypeReference();
                         }
 
-                        return new DuneTypeSignatureReference(def, [.. genericArgs]);
+                        return new DuneTypeSignatureReference(def, genericArgs);
                     }
 
                 default:

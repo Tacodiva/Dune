@@ -107,9 +107,9 @@ public sealed class DuneDirectoryAssemblyProvider(string directory, bool recursi
     }
 }
 
-public sealed class DuneMultiAssemblyProvider(params DuneAssemblyProvider[] providers) : DuneAssemblyProvider {
+public sealed class DuneMultiAssemblyProvider(params IEnumerable<DuneAssemblyProvider> providers) : DuneAssemblyProvider {
 
-    private readonly List<DuneAssemblyProvider> _assemblyProviders = [.. providers];
+    private readonly List<DuneAssemblyProvider> _assemblyProviders = providers.ToList();
     public IEnumerable<DuneAssemblyProvider> AssemblyProviders => _assemblyProviders;
 
     public void AddProvider(DuneAssemblyProvider provider) {

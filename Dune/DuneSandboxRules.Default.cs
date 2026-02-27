@@ -97,6 +97,7 @@ partial class DuneSandboxRules {
         AllowAll<RefSafetyRulesAttribute>();
         AllowAll<DebuggerHiddenAttribute>();
         AllowAll<NullableAttribute>();
+        AllowAll<NullableContextAttribute>();
         AllowAll<RuntimeCompatibilityAttribute>();
 
         Allow<Task>();

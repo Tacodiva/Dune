@@ -232,6 +232,11 @@ public static class DuneSandboxEnforcer {
         if (symbol is IDynamicTypeSymbol && !rules.AllowDynamicKeyword)
             return new DuneSandboxViolationKeyword("dynamic");
 
+        if (symbol is IMethodSymbol blah) {
+            Console.WriteLine(blah);
+            Console.WriteLine(DuneMethodReference.FromSymbol(blah));
+        }
+
         return symbol switch {
             ITypeSymbol typeSymbol => CheckTypeReference(rules, DuneTypeReference.FromSymbol(typeSymbol, false, ctx), sourceAssembly),
             IMethodSymbol methodSymbol => CheckMethodReference(rules, DuneMethodReference.FromSymbol(methodSymbol, ctx), sourceAssembly),
@@ -307,7 +312,7 @@ public static class DuneSandboxEnforcer {
 
         CheckNode(tree.GetRoot());
 
-        return [.. violations];
+        return violations.ToImmutableArray();
     }
     #endregion
 
@@ -630,7 +635,7 @@ public static class DuneSandboxEnforcer {
             }
         }
 
-        return [.. ctx.Violations];
+        return ctx.Violations.ToImmutableArray();
     }
 
     #endregion

@@ -33,9 +33,9 @@ public sealed class DuneMethodReference : IDuneMemberReference, IDuneGenericRefe
         return ctx.PutMethodReference(methodInfo, new(
             DuneMethodSignature.FromMethodInfo(methodInfo, ctx),
             DuneTypeSignatureReference.FromType(methodInfo.DeclaringType),
-            [..methodInfo.GetGenericArguments().Select(
+            methodInfo.GetGenericArguments().Select(
                 arg => DuneTypeReference.FromType(arg, ctx)
-            )]
+            )
         ));
     }
 
@@ -86,7 +86,7 @@ public sealed class DuneMethodReference : IDuneMemberReference, IDuneGenericRefe
         return ctx.PutMethodReference(methodReference, new(
             DuneMethodSignature.FromCecilDefinition(methodReference.Resolve(), ctx),
             DuneTypeSignatureReference.FromCecilReference(methodReference.DeclaringType, ctx),
-            [.. genericArguments]
+            genericArguments
         ));
     }
 
@@ -100,7 +100,7 @@ public sealed class DuneMethodReference : IDuneMemberReference, IDuneGenericRefe
         return ctx.PutMethodReference(methodSymbol, new(
             DuneMethodSignature.FromSymbol(methodSymbol, ctx),
             methodSymbol.ContainingType == null ? null : DuneTypeSignatureReference.FromSymbol(methodSymbol.ContainingType, ctx),
-            [.. methodSymbol.TypeArguments.Select(arg => DuneTypeReference.FromSymbol(arg, false, ctx))]
+            methodSymbol.TypeArguments.Select(arg => DuneTypeReference.FromSymbol(arg, false, ctx))
         ));
     }
 
@@ -120,12 +120,12 @@ public sealed class DuneMethodReference : IDuneMemberReference, IDuneGenericRefe
 
     IDuneType? IDuneMember.DeclaringType => DeclaringType;
 
-    internal DuneMethodReference(DuneMethodSignature signature, DuneTypeSignatureReference? declaringType, ImmutableArray<DuneTypeReference> genericArgs) {
-        InternalUtils.Assert(genericArgs.Length == signature.GenericParameterCount);
-
+    internal DuneMethodReference(DuneMethodSignature signature, DuneTypeSignatureReference? declaringType, IEnumerable<DuneTypeReference> genericArgs) {
         Signature = signature;
         DeclaringType = declaringType;
-        GenericArguments = genericArgs;
+        GenericArguments = genericArgs.ToImmutableArray();
+        
+        InternalUtils.Assert(GenericArguments.Length == signature.GenericParameterCount);
 
         ReturnType = signature.ReturnType?.Resolve(DeclaringType, this) ?? null;
         Parameters = Signature.Parameters.Select(

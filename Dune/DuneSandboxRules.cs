@@ -357,7 +357,9 @@ public sealed partial class DuneSandboxRules : IDuneSandboxRules {
         if (methodName == DuneMethodSignature.ConstructorMethodName) {
             selectedMethods = type.GetConstructors(DuneReflectionContext.EverythingPublicFlags);
         } else {
-            selectedMethods = [.. type.GetMethods(DuneReflectionContext.EverythingPublicFlags).Where(method => method.Name == methodName)];
+            selectedMethods = type.GetMethods(DuneReflectionContext.EverythingPublicFlags)
+                .Where(method => method.Name == methodName)
+                .ToArray();
         }
 
         if (selectedMethods.Length == 0)

@@ -28,7 +28,7 @@ public sealed record class DuneCompilationResult(
         => new(null, null, [new DuneUnexpectedErrorDiagnostic(e)]);
 
     public static DuneCompilationResult FromDiagnostics(IEnumerable<DuneDiagnostic> diagnostics)
-        => new(null, null, [.. diagnostics]);
+        => new(null, null, diagnostics.ToImmutableArray());
 
     public bool Success => Assembly != null;
     public bool HasDiagnostics => !Diagnostics.IsEmpty;
@@ -355,9 +355,9 @@ public static class DuneScriptCompiler {
 
             List<DuneDiagnostic> diagnostics = [];
 
-            ImmutableArray<SemanticModel> semanticModels = [.. compilation.SyntaxTrees.Select(
+            ImmutableArray<SemanticModel> semanticModels = compilation.SyntaxTrees.Select(
                 tree => compilation.GetSemanticModel(tree, true)
-            )];
+            ).ToImmutableArray();
 
             {
                 bool success = true;

@@ -42,6 +42,7 @@ public interface IDuneMemberSignature : IDuneMember {
 
 public interface IDuneGenericSignature : IDuneGenericSymbol {
     public ImmutableArray<string> GenericParameterNames { get; }
+    public DuneGenericTypeReference CreateGenericParameterReference(int index);
 }
 
 public interface IDuneGenericReference : IDuneGenericSymbol {

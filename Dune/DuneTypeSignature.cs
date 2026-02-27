@@ -108,6 +108,7 @@ public sealed class DuneTypeSignature : IDuneType, IDuneMemberSignature, IDuneGe
     public bool HasGenericParameters => !GenericParameterNames.IsEmpty;
     public int GenericParameterCount => GenericParameterNames.Length;
 
+
     public bool IsVoid => this == Void;
 
     IDuneType? IDuneMember.DeclaringType => DeclaringType;
@@ -143,14 +144,19 @@ public sealed class DuneTypeSignature : IDuneType, IDuneMemberSignature, IDuneGe
                 .. Enumerable.Repeat<DuneTypeReference>(DuneUnknownTypeReference.Instance, GenericParameterCount - parentType.GenericArguments.Length)
             ]);
 
-    public DuneTypeSignatureReference CreateReferenceWithParent(DuneTypeSignatureReference parentType, params ImmutableArray<DuneTypeReference> genericArgs)
+    public DuneTypeSignatureReference CreateReferenceWithParent(DuneTypeSignatureReference parentType, params IReadOnlyCollection<DuneTypeReference> genericArgs)
         => CreateReference([.. parentType.GenericArguments, .. genericArgs]);
 
-    public DuneTypeSignatureReference CreateReference(params ImmutableArray<DuneTypeReference> genericArgs) {
-        if (genericArgs.Length != GenericParameterCount)
-            throw new ArgumentException($"Wrong number of generic arguments. Expected {GenericParameterCount} got {genericArgs.Length}.");
+    public DuneTypeSignatureReference CreateReference(params IReadOnlyCollection<DuneTypeReference> genericArgs) {
+        if (genericArgs.Count != GenericParameterCount)
+            throw new ArgumentException($"Wrong number of generic arguments. Expected {GenericParameterCount} got {genericArgs.Count}.");
 
         return new(this, genericArgs);
+    }
+
+    public DuneGenericTypeReference CreateGenericParameterReference(int index) {
+        // TODO Check range
+        return new(index, this, DuneGenericSource.Type);
     }
 
     private static readonly DuneAssemblyReference _SystemAssembly = DuneAssemblyReference.FromAssembly(typeof(object).Assembly);
