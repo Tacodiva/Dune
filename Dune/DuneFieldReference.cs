@@ -20,7 +20,7 @@ public sealed class DuneFieldReference : DuneMemberReference<DuneFieldSignature>
         InternalUtils.ThrowIfArgumentNullOrWhitespace(fieldName);
 
         return FromFieldInfo(
-            type.GetField(fieldName, DuneReflectionContext.EverythingFlags)
+            type.GetField(fieldName, DuneReflectionContext.EverythingWithinFlags)
                 ?? throw new ArgumentException($"No field '{fieldName}' found on type {type}."),
             ctx);
     }

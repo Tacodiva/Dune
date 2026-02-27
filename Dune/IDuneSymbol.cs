@@ -40,14 +40,14 @@ public interface IDuneMemberSignature : IDuneMember {
     public new DuneTypeSignature? DeclaringType { get; }
 }
 
-public interface IDuneGenericSignature : IDuneGenericSymbol {
-    public ImmutableArray<string> GenericParameterNames { get; }
-    public DuneGenericTypeReference CreateGenericParameterReference(int index);
+public interface IDuneGenericReference : IDuneMemberReference, IDuneGenericSymbol {
+    public new IDuneGenericSignature Signature { get; }
+    public ImmutableArray<DuneTypeReference> GenericArguments { get; }
 }
 
-public interface IDuneGenericReference : IDuneGenericSymbol {
-    public IDuneGenericSignature Signature { get; }
-    public ImmutableArray<DuneTypeReference> GenericArguments { get; }
+public interface IDuneGenericSignature : IDuneMemberSignature, IDuneGenericSymbol {
+    public ImmutableArray<string> GenericParameterNames { get; }
+    public DuneGenericTypeReference CreateGenericParameterReference(int index);
 }
 
 public abstract class DuneMemberSignature(string name, DuneTypeSignature declaringType, DuneAssemblyReference assembly) : IDuneMemberSignature {

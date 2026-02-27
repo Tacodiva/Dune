@@ -87,21 +87,25 @@ public sealed class DuneSandboxTypeRules {
     }
 
     public DuneSandboxTypeRules AllowMethod(DuneMethodSignature methodDefinition) {
+        InternalUtils.Assert(Type.Matches(methodDefinition.DeclaringType));
         _allowedMethods.Add(methodDefinition);
         return this;
     }
 
     public DuneSandboxTypeRules BlockMethod(DuneMethodSignature methodDefinition) {
+        InternalUtils.Assert(Type.Matches(methodDefinition.DeclaringType));
         _allowedMethods.Remove(methodDefinition);
         return this;
     }
 
     public DuneSandboxTypeRules AllowField(DuneFieldSignature fieldDefinition) {
+        InternalUtils.Assert(Type.Matches(fieldDefinition.DeclaringType));
         _allowedFields.Add(fieldDefinition);
         return this;
     }
 
     public DuneSandboxTypeRules BlockField(DuneFieldSignature fieldDefinition) {
+        InternalUtils.Assert(Type.Matches(fieldDefinition.DeclaringType));
         _allowedFields.Remove(fieldDefinition);
         return this;
     }
@@ -355,9 +359,9 @@ public sealed partial class DuneSandboxRules : IDuneSandboxRules {
         MethodBase[] selectedMethods;
 
         if (methodName == DuneMethodSignature.ConstructorMethodName) {
-            selectedMethods = type.GetConstructors(DuneReflectionContext.EverythingPublicFlags);
+            selectedMethods = type.GetConstructors(DuneReflectionContext.EverythingPublicWithinFlags);
         } else {
-            selectedMethods = type.GetMethods(DuneReflectionContext.EverythingPublicFlags)
+            selectedMethods = type.GetMethods(DuneReflectionContext.EverythingPublicWithinFlags)
                 .Where(method => method.Name == methodName)
                 .ToArray();
         }
@@ -385,9 +389,9 @@ public sealed partial class DuneSandboxRules : IDuneSandboxRules {
         MethodBase? method;
 
         if (methodName == DuneMethodSignature.ConstructorMethodName) {
-            method = type.GetConstructor(DuneReflectionContext.EverythingPublicFlags, null, parameters, []);
+            method = type.GetConstructor(DuneReflectionContext.EverythingPublicWithinFlags, null, parameters, []);
         } else {
-            method = type.GetMethod(methodName, DuneReflectionContext.EverythingPublicFlags, null, parameters, []);
+            method = type.GetMethod(methodName, DuneReflectionContext.EverythingPublicWithinFlags, null, parameters, []);
         }
 
         if (method == null)
@@ -495,16 +499,16 @@ public sealed partial class DuneSandboxRules : IDuneSandboxRules {
     public void AllowAll(Type type, bool allowDependencies = true, DuneReflectionContext? ctx = null) {
         AllowType(type, allowDependencies, ctx);
 
-        foreach (MethodInfo method in type.GetMethods(DuneReflectionContext.EverythingPublicFlags))
+        foreach (MethodInfo method in type.GetMethods(DuneReflectionContext.EverythingPublicWithinFlags))
             AllowMethod(method, allowDependencies, ctx);
 
-        foreach (ConstructorInfo method in type.GetConstructors(DuneReflectionContext.EverythingPublicFlags))
+        foreach (ConstructorInfo method in type.GetConstructors(DuneReflectionContext.EverythingPublicWithinFlags))
             AllowMethod(method, allowDependencies, ctx);
 
-        foreach (FieldInfo field in type.GetFields(DuneReflectionContext.EverythingPublicFlags))
+        foreach (FieldInfo field in type.GetFields(DuneReflectionContext.EverythingPublicWithinFlags))
             AllowField(field, allowDependencies, ctx);
 
-        foreach (Type nested in type.GetNestedTypes(DuneReflectionContext.EverythingPublicFlags))
+        foreach (Type nested in type.GetNestedTypes(DuneReflectionContext.EverythingPublicWithinFlags))
             AllowAll(nested, allowDependencies, ctx);
     }
 

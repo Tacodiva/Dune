@@ -1,7 +1,8 @@
 
 namespace Dune;
 
-public abstract class DuneDefinition<TSignature>(TSignature signature, DuneCustomAttributeContainer customAttributes)
+public abstract class DuneDefinition<TSignature>(TSignature signature, DuneCustomAttributeContainer customAttributes):
+    IDuneCustomAttributeDefinition
     where TSignature : IDuneMemberSignature {
 
     public TSignature Signature { get; } = signature;

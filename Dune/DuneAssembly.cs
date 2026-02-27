@@ -41,6 +41,7 @@ public sealed partial class DuneAssembly {
     private byte[]? _assemblyBytes;
     private CecilAssemblyDefinition? _cecilDefinition;
     private PortableExecutableReference? _portableExeReference;
+    private DuneAssemblyDefinition? _duneDefinition;
 
     private DuneAssembly(Assembly assembly, DuneReflectionContext? ctx) {
         Reference = DuneAssemblyReference.FromAssembly(assembly, ctx);
@@ -174,7 +175,7 @@ public sealed partial class DuneAssembly {
             return false;
 
         if (dispose) _cecilDefinition.Dispose();
-        
+
         _cecilDefinition = null;
         return true;
     }
@@ -194,6 +195,19 @@ public sealed partial class DuneAssembly {
     public PortableExecutableReference GetPortableExecutableReference() {
         if (_portableExeReference != null) return _portableExeReference;
         return _portableExeReference = MetadataReference.CreateFromImage(GetBytes(), filePath: Path);
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public DuneAssemblyDefinition GetDefinition() {
+        if (_duneDefinition != null) return _duneDefinition;
+
+        if (_runtimeAssembly != null)
+            return _duneDefinition = DuneAssemblyDefinition.FromAssembly(_runtimeAssembly);
+
+        if (_cecilDefinition != null)
+            return _duneDefinition = DuneAssemblyDefinition.FromCecilDefinition(_cecilDefinition);
+
+        throw new InvalidOperationException($"Cannot get definition of assembly {this} which does not have a cecil definition and is not runtime loaded.");
     }
 
     public override string ToString() {

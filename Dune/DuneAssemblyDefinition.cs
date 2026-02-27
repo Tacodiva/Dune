@@ -6,7 +6,7 @@ using System.Reflection;
 
 namespace Dune;
 
-public sealed class DuneAssemblyDefinition {
+public sealed class DuneAssemblyDefinition : IDuneCustomAttributeDefinition {
 
     public static DuneAssemblyDefinition FromAssembly(Assembly assembly, DuneReflectionContext? ctx = null) {
         return new(

@@ -3,12 +3,17 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.Loader;
 
 namespace Dune;
-public sealed class DuneReflectionContext {
+public sealed class DuneReflectionContext : DuneContext {
 
     internal const BindingFlags EverythingFlags = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
     internal const BindingFlags EverythingPublicFlags = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public;
+
+    internal const BindingFlags EverythingWithinFlags = EverythingFlags | BindingFlags.DeclaredOnly;
+    internal const BindingFlags EverythingPublicWithinFlags = EverythingPublicFlags | BindingFlags.DeclaredOnly;
+
 
     private Dictionary<AssemblyName, DuneAssemblyReference>? _assemblyReferences = null;
     private Dictionary<Type, DuneTypeSignature>? _typeSignatures = null;
@@ -21,6 +26,8 @@ public sealed class DuneReflectionContext {
     private Dictionary<PropertyInfo, DunePropertyReference>? _propertyReferences = null;
     private Dictionary<FieldInfo, DuneFieldSignature>? _fieldSignatures = null;
     private Dictionary<FieldInfo, DuneFieldReference>? _fieldReferences = null;
+
+    public AssemblyLoadContext AssemblyLoadContext { get; } = AssemblyLoadContext.Default;
 
     #region Assembly
     public bool TryGetAssemblyReference(AssemblyName assemblyName, [NotNullWhen(true)] out DuneAssemblyReference? value) {

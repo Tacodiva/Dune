@@ -42,6 +42,7 @@ public interface IDuneCustomAttributeArgument {
     public DuneTypeReference Type { get; }
     public object Value { get; }
     public string ToString(DuneTypeFormat format);
+    public object GetRuntimeValue(DuneReflectionContext? ctx = null);
 }
 
 public sealed class DuneCustomAttributeArgumentArray : IDuneCustomAttributeArgument {
@@ -55,6 +56,19 @@ public sealed class DuneCustomAttributeArgumentArray : IDuneCustomAttributeArgum
         Type = type;
         Values = values.ToImmutableArray();
     }
+
+    public Array GetRuntimeValue(DuneReflectionContext? ctx = null) {
+        Type arrayType = Type.GetRuntimeType(ctx);
+        Array array = Array.CreateInstanceFromArrayType(arrayType, Values.Length);
+
+        for (int i = 0; i < array.Length; i++)
+            array.SetValue(Values[i]?.GetRuntimeValue(ctx), i);
+
+        return array;
+    }
+
+    object IDuneCustomAttributeArgument.GetRuntimeValue(DuneReflectionContext? ctx)
+        => GetRuntimeValue(ctx);
 
     public override string ToString() => ToString(DuneTypeFormat.DefaultMinimal);
 
@@ -138,6 +152,25 @@ public sealed class DuneCustomAttributeArgumentValue : IDuneCustomAttributeArgum
         }
     }
 
+    public object GetRuntimeValue(DuneReflectionContext? ctx = null) {
+        object value = Value;
+        if (value is DuneTypeReference typeReference)
+            value = typeReference.GetRuntimeType(ctx);
+
+        Type type = Type.GetRuntimeType(ctx);
+
+        if (value.GetType().IsAssignableTo(type))
+            return value;
+
+        if (type.IsEnum)
+            return Enum.ToObject(type, value);
+
+        if (value is IConvertible)
+            return Convert.ChangeType(value, type);
+
+        throw new NotSupportedException($"Cannot convert value from type {value.GetType()} into {type}.");
+    }
+
     public override string ToString() => ToString(DuneTypeFormat.DefaultMinimal);
 
     public string ToString(DuneTypeFormat format) {
@@ -175,7 +208,7 @@ public sealed class DuneCustomAttributeArgumentValue : IDuneCustomAttributeArgum
     }
 }
 
-public sealed class DuneCustomAttributeContainer : IReadOnlyCollection<DuneCustomAttributeDefinition> {
+public sealed class DuneCustomAttributeContainer : IReadOnlyList<DuneCustomAttributeDefinition> {
 
     public static DuneCustomAttributeContainer Empty { get; } = new([]);
 
@@ -193,6 +226,7 @@ public sealed class DuneCustomAttributeContainer : IReadOnlyCollection<DuneCusto
 
     public ImmutableArray<DuneCustomAttributeDefinition> Attributes { get; }
     public int Count => Attributes.Length;
+    public DuneCustomAttributeDefinition this[int index] => Attributes[index];
 
     internal DuneCustomAttributeContainer(IEnumerable<DuneCustomAttributeDefinition> attributes) {
         Attributes = attributes.ToImmutableArray();
@@ -202,6 +236,59 @@ public sealed class DuneCustomAttributeContainer : IReadOnlyCollection<DuneCusto
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
     public override string ToString() => ToString(DuneTypeFormat.Default, DuneTypeFormat.DefaultMinimal);
+
+    public T? TryGetAttribute<T>(DuneReflectionContext? ctx = null) where T : Attribute
+        => GetAttributes<T>(ctx).FirstOrDefault();
+
+    public IEnumerable<T> GetAttributes<T>(DuneReflectionContext? ctx = null) where T : Attribute {
+        return GetAttributes(typeof(T), ctx).Cast<T>();
+    }
+    
+    public IEnumerable<Attribute> GetAttributes(Type attributeType, DuneReflectionContext? ctx = null) {
+        DuneTypeSignature attributeSignature = DuneTypeSignature.FromType(attributeType, ctx);
+
+        foreach (DuneCustomAttributeDefinition attribute in this) {
+            MethodBase? foundConstructorMethod = attributeType.TryGetMethod(attribute.Constructor, ctx);
+
+            if (foundConstructorMethod is not ConstructorInfo foundConstructor)
+                continue;
+
+            object?[] runtimeConstructorArguments = attribute.ConstructorArguments
+                .Select(arg => arg?.GetRuntimeValue(ctx))
+                .ToArray();
+
+            Attribute runtimeAttribute = (Attribute)foundConstructor.Invoke(runtimeConstructorArguments);
+
+            foreach (DuneCustomAttributeDefinition.NamedArgument namedArg in attribute.NamedArguments) {
+                object? namedArgValue = namedArg.Value?.GetRuntimeValue(ctx);
+
+                switch (namedArg.Type) {
+                    case DuneCustomAttributeDefinition.NamedArgumentType.Property: {
+                            PropertyInfo property = attributeType.GetProperty(namedArg.Name, DuneReflectionContext.EverythingPublicFlags)
+                                ?? throw new DuneException($"Could not find property named '{namedArg.Name}' on type {attributeType}");
+
+                            property.SetValue(runtimeAttribute, namedArgValue);
+                            break;
+                        }
+                    case DuneCustomAttributeDefinition.NamedArgumentType.Field: {
+                            FieldInfo field = attributeType.GetField(namedArg.Name, DuneReflectionContext.EverythingPublicFlags)
+                                ?? throw new DuneException($"Could not find field named '{namedArg.Name}' on type {attributeType}");
+
+                            field.SetValue(runtimeAttribute, namedArgValue);
+                            break;
+                        }
+                }
+            }
+
+            yield return runtimeAttribute;
+        }
+    }
+
+    public DuneCustomAttributeDefinition? GetAttribute(DuneTypeSignature attributeType)
+        => GetAttributes(attributeType).FirstOrDefault();
+
+    public IEnumerable<DuneCustomAttributeDefinition> GetAttributes(DuneTypeSignature attributeType)
+        => this.Where(attribute => attribute.Type == attributeType);
 
     public string ToString(DuneTypeFormat constructorFormat, DuneTypeFormat argumentFormat) {
         return new StringBuilder()
@@ -214,11 +301,28 @@ public sealed class DuneCustomAttributeContainer : IReadOnlyCollection<DuneCusto
 
 public sealed class DuneCustomAttributeDefinition {
 
+    public enum NamedArgumentType {
+        Field,
+        Property
+    }
+
+    public record class NamedArgument(
+        NamedArgumentType Type,
+        string Name,
+        IDuneCustomAttributeArgument? Value
+    );
+
     public static DuneCustomAttributeDefinition FromCustomAttributeData(CustomAttributeData data, DuneReflectionContext? ctx = null) {
         return new(
             DuneMethodSignature.FromConstructorInfo(data.Constructor, ctx),
             data.ConstructorArguments.Select(arg => IDuneCustomAttributeArgument.FromCustomAttributeTypedArgument(arg, ctx)),
-            data.NamedArguments.Select(arg => (arg.MemberName, IDuneCustomAttributeArgument.FromCustomAttributeTypedArgument(arg.TypedValue, ctx)))
+            data.NamedArguments.Select(
+                arg => new NamedArgument(
+                    arg.IsField ? NamedArgumentType.Field : NamedArgumentType.Property,
+                    arg.MemberName,
+                    IDuneCustomAttributeArgument.FromCustomAttributeTypedArgument(arg.TypedValue, ctx)
+                )
+            )
         );
     }
 
@@ -226,8 +330,11 @@ public sealed class DuneCustomAttributeDefinition {
         return new(
             DuneMethodSignature.FromCecilDefinition(attr.Constructor.Resolve(), ctx),
             attr.ConstructorArguments.Select(arg => IDuneCustomAttributeArgument.FromCustomAttributeArgument(arg, ctx)),
-            attr.Fields.Concat(attr.Properties)
-                .Select(arg => (arg.Name, IDuneCustomAttributeArgument.FromCustomAttributeArgument(arg.Argument, ctx)))
+            attr.Fields.Select(
+                arg => new NamedArgument(NamedArgumentType.Field, arg.Name, IDuneCustomAttributeArgument.FromCustomAttributeArgument(arg.Argument, ctx))
+            ).Concat(attr.Properties.Select(
+                arg => new NamedArgument(NamedArgumentType.Property, arg.Name, IDuneCustomAttributeArgument.FromCustomAttributeArgument(arg.Argument, ctx))
+            ))
         );
     }
 
@@ -235,9 +342,9 @@ public sealed class DuneCustomAttributeDefinition {
     public DuneTypeSignature Type => Constructor.DeclaringType!;
 
     public ImmutableArray<IDuneCustomAttributeArgument?> ConstructorArguments { get; }
-    public ImmutableArray<(string Name, IDuneCustomAttributeArgument? Argument)> NamedArguments { get; }
+    public ImmutableArray<NamedArgument> NamedArguments { get; }
 
-    internal DuneCustomAttributeDefinition(DuneMethodSignature constructor, IEnumerable<IDuneCustomAttributeArgument?> constructorArguments, IEnumerable<(string, IDuneCustomAttributeArgument?)> namedArguments) {
+    internal DuneCustomAttributeDefinition(DuneMethodSignature constructor, IEnumerable<IDuneCustomAttributeArgument?> constructorArguments, IEnumerable<NamedArgument> namedArguments) {
         Constructor = constructor;
         ConstructorArguments = constructorArguments.ToImmutableArray();
         NamedArguments = namedArguments.ToImmutableArray();
@@ -251,7 +358,7 @@ public sealed class DuneCustomAttributeDefinition {
         sb.Append('(');
         sb.AppendEnumerable(
             ConstructorArguments.Select(arg => ((string?)null, arg))
-                .Concat(NamedArguments.Select(arg => ((string?)arg.Name, arg.Argument))),
+                .Concat(NamedArguments.Select(arg => ((string?)arg.Name, arg.Value))),
             (arg, sb) => {
                 if (arg.Item1 != null) {
                     sb.Append(arg.Item1);

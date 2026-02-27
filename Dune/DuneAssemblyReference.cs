@@ -106,16 +106,32 @@ public sealed class DuneAssemblyReference(string name, Version? version = null, 
         );
     }
 
-    public bool Matches(DuneAssembly assembly) => Matches(assembly.Reference);
+    public bool Matches(Assembly? assembly, DuneReflectionContext? ctx = null)
+        => assembly != null && Matches(FromAssembly(assembly, ctx), ctx);
 
-    public bool Matches(DuneAssemblyReference reference) {
+    public bool Matches(AssemblyName? assembly, DuneReflectionContext? ctx = null)
+        => assembly != null && Matches(FromAssemblyName(assembly, ctx), ctx);
+
+    public bool Matches(CecilAssemblyDefinition? assembly, DuneCecilContext? ctx = null)
+        => assembly != null && Matches(FromCecilDefinition(assembly, ctx), ctx);
+
+    public bool Matches(AssemblyNameReference? assembly, DuneCecilContext? ctx = null)
+        => assembly != null && Matches(FromCecilReference(assembly, ctx), ctx);
+
+    public bool Matches(DuneAssembly? assembly, DuneContext? ctx = null)
+        => assembly != null && Matches(assembly?.Reference, ctx);
+
+    public bool Matches(DuneAssemblyReference? reference, DuneContext? ctx = null) {
+        if (ReferenceEquals(this, reference)) return true;
+        if (reference is null) return false;
+
         if (Name != reference.Name) return false;
 
-        if (HasVersion && reference.HasVersion) {
+        if (!(ctx?.IgnoreAssemblyVersion ?? false) && HasVersion && reference.HasVersion) {
             if (Version != reference.Version) return false;
         }
 
-        if (HasCulture && reference.HasCulture) {
+        if (!(ctx?.IgnoreAssemblyCulture ?? false) && HasCulture && reference.HasCulture) {
             if (CultureName != reference.CultureName) return false;
         }
 
@@ -123,15 +139,7 @@ public sealed class DuneAssemblyReference(string name, Version? version = null, 
     }
 
     public override bool Equals(object? obj) => Equals(obj as DuneAssemblyReference);
-    public bool Equals(DuneAssemblyReference? reference) {
-        if (ReferenceEquals(this, reference)) return true;
-        if (reference is null) return false;
-        
-        if (Name != reference.Name) return false;
-        if (Version != reference.Version) return false;
-        if (CultureName != reference.CultureName) return false;
-        return true;
-    }
+    public bool Equals(DuneAssemblyReference? reference) => Matches(reference, null);
 
     public static bool operator ==(DuneAssemblyReference? a, DuneAssemblyReference? b) => a?.Equals(b) ?? b is null;
     public static bool operator !=(DuneAssemblyReference? a, DuneAssemblyReference? b) => !(a == b);

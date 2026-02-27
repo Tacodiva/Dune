@@ -196,7 +196,7 @@ public sealed class DuneCompilationProcessorContext {
 
             ILProcessor il = attrCtorDef.Body.GetILProcessor();
             il.Emit(OpCodes.Ldarg_0);
-            il.Emit(OpCodes.Call, CecilAssembly.MainModule.ImportReference(typeof(Attribute).GetConstructor(DuneReflectionContext.EverythingFlags, null, [], [])));
+            il.Emit(OpCodes.Call, CecilAssembly.MainModule.ImportReference(typeof(Attribute).GetConstructor(DuneReflectionContext.EverythingWithinFlags, null, [], [])));
 
             for (int i = 0; i < resolvedParameters.Length; i++) {
                 il.Emit(OpCodes.Ldarg_0);

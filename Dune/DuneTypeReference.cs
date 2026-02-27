@@ -5,6 +5,7 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection.Metadata;
+using System.Runtime.Loader;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Mono.Cecil;
@@ -198,7 +199,7 @@ public abstract class DuneTypeReference : IDuneType, IEquatable<DuneTypeReferenc
                             // Sanity check for the above to make sure the index we calculated gives us a generic of the right name.
                             InternalUtils.Assert(typeParamSymbol.Name == genericDeclaringTypeDef.GenericParameterNames[genericIndex]);
 
-                            return ctx.PutTypeReference(typeSymbol, false, 
+                            return ctx.PutTypeReference(typeSymbol, false,
                                 new DuneGenericTypeReference(genericIndex, genericDeclaringTypeDef, DuneGenericSource.Type)
                             );
                         }
@@ -238,6 +239,8 @@ public abstract class DuneTypeReference : IDuneType, IEquatable<DuneTypeReferenc
 
     public abstract bool IsResolved { get; }
 
+    public abstract bool Matches(DuneTypeReference? other, DuneContext? ctx = null);
+
     public bool Equals(IDuneSymbol? obj) => Equals(obj as DuneTypeReference);
     public override bool Equals(object? obj) => Equals(obj as DuneTypeReference);
     public abstract bool Equals(DuneTypeReference? other);
@@ -264,6 +267,10 @@ public abstract class DuneTypeReference : IDuneType, IEquatable<DuneTypeReferenc
 
     internal protected virtual void FormatAndAppendName(in DuneTypeFormat format, StringBuilder sb) {
         sb.Append(Name);
+    }
+
+    internal virtual Type GetRuntimeType(DuneReflectionContext? ctx) {
+        throw new NotSupportedException($"Cannot get runtime type for {this}.");
     }
 
     internal DuneTypeReference Resolve(DuneTypeSignatureReference? declaringType, bool force = true) {
@@ -302,6 +309,8 @@ public sealed class DuneUnknownTypeReference : DuneTypeReference {
 
     private DuneUnknownTypeReference() { }
 
+    public override bool Matches(DuneTypeReference? other, DuneContext? ctx = null) => other is DuneUnknownTypeReference;
+
     public override bool Equals(DuneTypeReference? other) => Equals(other as DuneUnknownTypeReference);
     public override bool Equals(object? obj) => Equals(obj as DuneUnknownTypeReference);
     public static bool Equals(DuneUnknownTypeReference? other) => other is not null;
@@ -319,7 +328,7 @@ public sealed class DuneGenericTypeReference : DuneTypeReference, IEquatable<Dun
     public int Index { get; }
     public override string Name { get; }
     public DuneGenericSource Source { get; }
-    public override DuneAssemblyReference? Assembly { get; }
+    public override DuneAssemblyReference Assembly { get; }
 
     public override bool IsResolved => false;
 
@@ -330,7 +339,7 @@ public sealed class DuneGenericTypeReference : DuneTypeReference, IEquatable<Dun
         Assembly = signature.Assembly;
     }
 
-    internal DuneGenericTypeReference(int index, string name, DuneAssemblyReference? assembly, DuneGenericSource source) {
+    internal DuneGenericTypeReference(int index, string name, DuneAssemblyReference assembly, DuneGenericSource source) {
         Index = index;
         Name = name;
         Source = source;
@@ -360,22 +369,28 @@ public sealed class DuneGenericTypeReference : DuneTypeReference, IEquatable<Dun
         return resolved.TryResolve(declaringType, declaringMethod, force) ?? resolved;
     }
 
+    public override bool Matches(DuneTypeReference? other, DuneContext? ctx = null) {
+        if (ReferenceEquals(this, other)) return true;
+        if (other is not DuneGenericTypeReference otherGeneric) return false;
+        if (Index != otherGeneric.Index) return false;
+        if (Name != otherGeneric.Name) return false;
+        if (Assembly.Matches(otherGeneric.Assembly, ctx)) return false;
+        return true;
+    }
+
     public override bool Equals(object? obj) => Equals(obj as DuneGenericTypeReference);
     public override bool Equals(DuneTypeReference? other) => Equals(other as DuneGenericTypeReference);
 
     public bool Equals(DuneGenericTypeReference? other) {
         if (ReferenceEquals(this, other)) return true;
         if (other is null) return false;
-
         if (Index != other.Index) return false;
         if (Name != other.Name) return false;
         if (Assembly != other.Assembly) return false;
-
         return true;
     }
 
     public override int GetHashCode() => InternalUtils.HashCodeCombine(Index, Name, Source, Assembly);
-
 }
 
 public abstract class DuneDecoratorTypeReference : DuneTypeReference {
@@ -407,11 +422,22 @@ public sealed class DuneArrayTypeReference : DuneDecoratorTypeReference, IEquata
     protected override DuneDecoratorTypeReference CloneWithElement(DuneTypeReference newElement)
         => new DuneArrayTypeReference(newElement, DimensionCount);
 
+    internal override Type GetRuntimeType(DuneReflectionContext? ctx)
+        => Element.GetRuntimeType(ctx).MakeArrayType(DimensionCount);
+
     protected internal override void FormatAndAppendName(in DuneTypeFormat format, StringBuilder sb) {
         Element.FormatAndAppendName(format, sb);
         sb.Append('[');
         sb.Append(',', DimensionCount - 1);
         sb.Append(']');
+    }
+
+    public override bool Matches(DuneTypeReference? other, DuneContext? ctx = null) {
+        if (ReferenceEquals(this, other)) return true;
+        if (other is not DuneArrayTypeReference otherArr) return false;
+        if (DimensionCount != otherArr.DimensionCount) return false;
+        if (!Element.Matches(otherArr.Element, ctx)) return false;
+        return true;
     }
 
     public override bool Equals(object? obj) => Equals(obj as DuneArrayTypeReference);
@@ -439,9 +465,19 @@ public sealed class DunePointerTypeReference : DuneDecoratorTypeReference, IEqua
     protected override DuneDecoratorTypeReference CloneWithElement(DuneTypeReference newElement)
         => new DunePointerTypeReference(newElement);
 
+    internal override Type GetRuntimeType(DuneReflectionContext? ctx)
+        => Element.GetRuntimeType(ctx).MakePointerType();
+
     protected internal override void FormatAndAppendName(in DuneTypeFormat format, StringBuilder sb) {
         Element.FormatAndAppendName(format, sb);
         sb.Append('*');
+    }
+
+    public override bool Matches(DuneTypeReference? other, DuneContext? ctx = null) {
+        if (ReferenceEquals(this, other)) return true;
+        if (other is not DunePointerTypeReference otherPtr) return false;
+        if (!Element.Matches(otherPtr.Element, ctx)) return false;
+        return true;
     }
 
     public override bool Equals(object? obj) => Equals(obj as DunePointerTypeReference);
@@ -468,9 +504,19 @@ public sealed class DuneRefTypeReference : DuneDecoratorTypeReference, IEquatabl
     protected override DuneDecoratorTypeReference CloneWithElement(DuneTypeReference newElement)
         => new DuneRefTypeReference(newElement);
 
+    internal override Type GetRuntimeType(DuneReflectionContext? ctx)
+        => Element.GetRuntimeType(ctx).MakeByRefType();
+
     protected internal override void FormatAndAppendName(in DuneTypeFormat format, StringBuilder sb) {
         Element.FormatAndAppendName(format, sb);
         sb.Append('&');
+    }
+
+    public override bool Matches(DuneTypeReference? other, DuneContext? ctx = null) {
+        if (ReferenceEquals(this, other)) return true;
+        if (other is not DuneRefTypeReference otherRef) return false;
+        if (!Element.Matches(otherRef.Element, ctx)) return false;
+        return true;
     }
 
     public override bool Equals(object? obj) => Equals(obj as DuneRefTypeReference);
@@ -545,12 +591,34 @@ public sealed class DuneFunctionPointerTypeReference : DuneTypeReference, IEquat
         sb.Append('>');
     }
 
+    public override bool Matches(DuneTypeReference? other, DuneContext? ctx = null) {
+        if (ReferenceEquals(this, other)) return true;
+        if (other is not DuneFunctionPointerTypeReference otherFuncPtr) return false;
+        if (otherFuncPtr.IsUnmanaged != IsUnmanaged) return false;
+
+        if (ReturnType == null) {
+            if (otherFuncPtr.ReturnType != null) return false;
+        } else {
+            if (!ReturnType.Matches(otherFuncPtr.ReturnType, ctx)) return false;
+        }
+
+        if (otherFuncPtr.Parameters.Length != Parameters.Length) return false;
+
+        for (int i = 0; i < Parameters.Length; i++) {
+            if (!otherFuncPtr.Parameters[i].Matches(Parameters[i], ctx))
+                return false;
+        }
+
+        return true;
+    }
+
     public override bool Equals(object? obj) => Equals(obj as DuneFunctionPointerTypeReference);
     public override bool Equals(DuneTypeReference? other) => Equals(other as DuneFunctionPointerTypeReference);
     public bool Equals(DuneFunctionPointerTypeReference? other) {
         if (ReferenceEquals(this, other)) return true;
         if (other is null) return false;
         if (other.IsUnmanaged != IsUnmanaged) return false;
+        if (other.ReturnType != ReturnType) return false;
         if (!other.Parameters.SequenceEqual(Parameters)) return false;
         return true;
     }
@@ -710,6 +778,23 @@ public sealed class DuneTypeSignatureReference : DuneTypeReference, IDuneMemberR
         return new DuneTypeSignatureReference(Signature, resolvedGenerics);
     }
 
+    internal override Type GetRuntimeType(DuneReflectionContext? ctx) {
+        AssemblyLoadContext assemblyLoadContext = ctx?.AssemblyLoadContext ?? AssemblyLoadContext.Default;
+
+        Type foundType = assemblyLoadContext.TryGetType(Signature, ctx) ??
+            throw new DuneTypeNotFoundException(Signature);
+
+        if (foundType.IsGenericTypeDefinition) {
+            Type[] genericArgs = new Type[GenericArguments.Length];
+            for (int i = 0; i < genericArgs.Length; i++) {
+                genericArgs[i] = GenericArguments[i].GetRuntimeType(ctx);
+            }
+
+            foundType = foundType.MakeGenericType(genericArgs);
+        }
+
+        return foundType;
+    }
 
     StringBuilder IDuneMember.FormatAndAppendName(in DuneTypeFormat format, StringBuilder sb) {
         FormatAndAppendName(format, sb);
@@ -722,6 +807,23 @@ public sealed class DuneTypeSignatureReference : DuneTypeReference, IDuneMemberR
 
     protected internal override void FormatAndAppendName(in DuneTypeFormat format, StringBuilder sb) {
         (Signature as IDuneType).FormatAndAppendName(format, sb);
+    }
+
+    public override bool Matches(DuneTypeReference? other, DuneContext? ctx = null) {
+        if (ReferenceEquals(this, other)) return true;
+
+        // Void should match null
+        if (other is null) return Signature.IsVoid;
+
+        if (other is not DuneTypeSignatureReference otherSigRef) return false;
+        if (!otherSigRef.Signature.Matches(Signature, ctx)) return false;
+
+        for (int i = 0; i < GenericArguments.Length; i++) {
+            if (!otherSigRef.GenericArguments[i].Matches(GenericArguments[i], ctx))
+                return false;
+        }
+
+        return true;
     }
 
     public override bool Equals(object? obj) => Equals(obj as DuneTypeSignatureReference);

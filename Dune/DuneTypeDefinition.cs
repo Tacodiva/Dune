@@ -32,18 +32,18 @@ public sealed class DuneTypeDefinition : DuneDefinition<DuneTypeSignature> {
             DuneCustomAttributeContainer.FromMemberInfo(type, ctx),
             type.GetGenericArguments().Select(genericArg => DuneCustomAttributeContainer.FromMemberInfo(genericArg, ctx)),
 
-            type.GetMethods(DuneReflectionContext.EverythingFlags)
+            type.GetMethods(DuneReflectionContext.EverythingWithinFlags)
                 .AsEnumerable<MethodBase>()
                 .Concat(type.GetConstructors())
                 .Select(method => DuneMethodDefinition.FromMethodBase(method, ctx)),
 
-            type.GetFields(DuneReflectionContext.EverythingFlags)
+            type.GetFields(DuneReflectionContext.EverythingWithinFlags)
                 .Select(field => DuneFieldDefinition.FromFieldInfo(field, ctx)),
 
-            type.GetProperties(DuneReflectionContext.EverythingFlags)
+            type.GetProperties(DuneReflectionContext.EverythingWithinFlags)
                 .Select(property => DunePropertyDefinition.FromPropertyInfo(property, ctx)),
 
-            type.GetEvents(DuneReflectionContext.EverythingFlags)
+            type.GetEvents(DuneReflectionContext.EverythingWithinFlags)
                 .Select(@event => DuneEventDefinition.FromEventInfo(@event, ctx))
         );
     }

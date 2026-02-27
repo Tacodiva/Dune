@@ -16,7 +16,7 @@ public sealed class DuneEventSignature : DuneMemberSignature, IEquatable<DuneEve
 
     public static DuneEventSignature FromType(Type type, string eventName, DuneReflectionContext? ctx = null)
         => FromEventInfo(
-            type.GetEvent(eventName, DuneReflectionContext.EverythingFlags)
+            type.GetEvent(eventName, DuneReflectionContext.EverythingWithinFlags)
                 ?? throw new ArgumentException($"No event '{eventName}' found on type {type}."),
             ctx);
 
@@ -30,7 +30,7 @@ public sealed class DuneEventSignature : DuneMemberSignature, IEquatable<DuneEve
 
         if (declaringType.IsGenericType && !declaringType.IsGenericTypeDefinition) {
             declaringType = declaringType.GetGenericTypeDefinition();
-            eventInfo = declaringType.GetEvent(eventInfo.Name, DuneReflectionContext.EverythingFlags)!;
+            eventInfo = declaringType.GetEvent(eventInfo.Name, DuneReflectionContext.EverythingWithinFlags)!;
             InternalUtils.Assert(eventInfo != null, "Event not found on generic type definition.");
         }
 
@@ -115,6 +115,85 @@ public sealed class DuneEventSignature : DuneMemberSignature, IEquatable<DuneEve
         eventFormat.AppendAssemblySuffix(this, sb);
 
         return sb.ToString();
+    }
+
+    public bool Matches(EventInfo? @event, DuneReflectionContext? ctx = null) {
+        if (@event is null) return false;
+        if (@event.Name != Name) return false;
+        if (!DeclaringType.Matches(@event.DeclaringType, ctx)) return false;
+
+        if (AddMethod == null) {
+            if (@event.AddMethod != null) return false;
+        } else {
+            if (!AddMethod.Matches(@event.AddMethod, ctx)) return false;
+        }
+
+        if (RaiseMethod == null) {
+            if (@event.RaiseMethod != null) return false;
+        } else {
+            if (!RaiseMethod.Matches(@event.RaiseMethod, ctx)) return false;
+        }
+
+        if (RemoveMethod == null) {
+            if (@event.RemoveMethod != null) return false;
+        } else {
+            if (!RemoveMethod.Matches(@event.RemoveMethod, ctx)) return false;
+        }
+
+        return true;
+    }
+
+    public bool Matches(CecilEventDefinition? @event, DuneCecilContext? ctx = null) {
+        if (@event is null) return false;
+        if (@event.Name != Name) return false;
+        if (!DeclaringType.Matches(@event.DeclaringType, ctx)) return false;
+
+        if (AddMethod == null) {
+            if (@event.AddMethod != null) return false;
+        } else {
+            if (!AddMethod.Matches(@event.AddMethod, ctx)) return false;
+        }
+
+        if (RaiseMethod == null) {
+            if (@event.InvokeMethod != null) return false;
+        } else {
+            if (!RaiseMethod.Matches(@event.InvokeMethod, ctx)) return false;
+        }
+
+        if (RemoveMethod == null) {
+            if (@event.RemoveMethod != null) return false;
+        } else {
+            if (!RemoveMethod.Matches(@event.RemoveMethod, ctx)) return false;
+        }
+
+        return true;
+    }
+
+    public bool Matches(DuneEventSignature? @event, DuneContext? ctx = null) {
+        if (ReferenceEquals(this, @event)) return true;
+        if (@event is null) return false;
+        if (@event.Name != Name) return false;
+        if (!DeclaringType.Matches(@event.DeclaringType, ctx)) return false;
+
+        if (AddMethod == null) {
+            if (@event.AddMethod != null) return false;
+        } else {
+            if (!AddMethod.Matches(@event.AddMethod, ctx)) return false;
+        }
+
+        if (RaiseMethod == null) {
+            if (@event.RaiseMethod != null) return false;
+        } else {
+            if (!RaiseMethod.Matches(@event.RaiseMethod, ctx)) return false;
+        }
+
+        if (RemoveMethod == null) {
+            if (@event.RemoveMethod != null) return false;
+        } else {
+            if (!RemoveMethod.Matches(@event.RemoveMethod, ctx)) return false;
+        }
+
+        return true;
     }
 
     public override bool Equals(object? obj) => Equals(obj as DuneEventSignature);

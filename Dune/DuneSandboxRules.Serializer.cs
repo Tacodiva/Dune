@@ -172,8 +172,7 @@ partial class DuneSandboxRules {
 
                         sb.DuneWrite7BitEncodedInt(genericRef.Index);
                         sb.Write(genericRef.Name);
-                        sb.DuneWrite7BitEncodedInt(genericRef.Assembly == null ?
-                            0 : (GetAssemblyReference(genericRef.Assembly) + 1));
+                        sb.DuneWrite7BitEncodedInt(GetAssemblyReference(genericRef.Assembly));
                         break;
                     }
 
@@ -325,9 +324,8 @@ partial class DuneSandboxRules {
                         DuneGenericSource source = typeChar == TypeCharMethodGeneric ? DuneGenericSource.Method : DuneGenericSource.Type;
                         int index = reader.DuneRead7BitEncodedInt();
                         string name = reader.ReadString();
-                        int assemblyIndex = reader.DuneRead7BitEncodedInt() - 1;
-                        DuneAssemblyReference? assembly = null;
-                        if (assemblyIndex != -1) assembly = assemblies[assemblyIndex];
+                        int assemblyIndex =  reader.DuneRead7BitEncodedInt();
+                        DuneAssemblyReference? assembly = assemblies[assemblyIndex];
 
                         return new DuneGenericTypeReference(index, name, assembly, source);
                     }

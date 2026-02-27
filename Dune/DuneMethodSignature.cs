@@ -304,17 +304,84 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
         return sb.ToString();
     }
 
+    public bool Matches(MethodBase? method, DuneReflectionContext? ctx = null) {
+        if (method is null) return false;
+        if (method.Name != Name) return false;
+
+        ParameterInfo[] parameters = method.GetParameters();
+        if (parameters.Length != Parameters.Length) return false;
+
+        if (method is MethodInfo methodInfo) {
+            InternalUtils.Assert(!IsConstructor);
+
+            if (methodInfo.GetGenericArguments().Length != GenericParameterCount)
+                return false;
+
+            if (!DuneTypeReference.FromType(methodInfo.ReturnType, ctx).Matches(ReturnType, ctx))
+                return false;
+        } else {
+            InternalUtils.Assert(method is ConstructorInfo && IsConstructor);
+        }
+
+        if (!DeclaringType.Matches(method.DeclaringType, ctx)) return false;
+
+        for (int i = 0; i < parameters.Length; i++) {
+            if (!DuneTypeReference.FromType(parameters[i].ParameterType, ctx).Matches(Parameters[i].Type, ctx))
+                return false;
+        }
+
+        return true;
+    }
+
+    public bool Matches(CecilMethodDefinition? method, DuneCecilContext? ctx = null) {
+        if (method is null) return false;
+        if (method.Name != Name) return false;
+        if (method.GenericParameters.Count != GenericParameterCount) return false;
+        if (method.Parameters.Count != Parameters.Length) return false;
+        if (!DeclaringType.Matches(method.DeclaringType, ctx)) return false;
+
+        if (!DuneTypeReference.FromCecilReference(method.ReturnType, ctx).Matches(ReturnType, ctx))
+            return false;
+
+        for (int i = 0; i < Parameters.Length; i++) {
+            if (!DuneTypeReference.FromCecilReference(method.Parameters[i].ParameterType, ctx).Matches(Parameters[i].Type))
+                return false;
+        }
+
+        return true;
+    }
+
+    public bool Matches(DuneMethodSignature? method, DuneContext? ctx = null) {
+        if (method is null) return false;
+        if (method.Name != Name) return false;
+        if (method.GenericParameterCount != GenericParameterCount) return false;
+        if (method.Parameters.Length != Parameters.Length) return false;
+        if (!DeclaringType.Matches(method.DeclaringType, ctx)) return false;
+
+        if (ReturnType == null) {
+            if (method.ReturnType != null) return false;
+        } else {
+            if (!ReturnType.Matches(method.ReturnType, ctx)) return false;
+        }
+
+        for (int i = 0; i < Parameters.Length; i++) {
+            if (!method.Parameters[i].Type.Matches(Parameters[i].Type, ctx))
+                return false;
+        }
+
+        return true;
+    }
+
     public override bool Equals(object? obj) => Equals(obj as DuneMethodSignature);
     public bool Equals(IDuneSymbol? other) => Equals(other as DuneMethodSignature);
     public bool Equals(DuneMethodSignature? other) {
         if (ReferenceEquals(this, other)) return true;
         if (other is null) return false;
-
         if (Name != other.Name) return false;
         if (DeclaringType != other.DeclaringType) return false;
         if (ReturnType != other.ReturnType) return false;
+        if (!GenericParameterNames.SequenceEqual(other.GenericParameterNames)) return false;
         if (!Parameters.SequenceEqual(other.Parameters)) return false;
-
         return true;
     }
 
@@ -324,7 +391,7 @@ public sealed class DuneMethodSignature : IDuneMemberSignature, IDuneGenericSign
     public override int GetHashCode() {
         int hashCode = InternalUtils.HashCodeCombine(DeclaringType, Name, GenericParameterCount, ReturnType);
         foreach (DuneMethodParameter param in Parameters)
-            hashCode = InternalUtils.HashCodeCombine(hashCode, param);
+            hashCode = InternalUtils.HashCodeCombine(hashCode, param.Type);
         return hashCode;
     }
 

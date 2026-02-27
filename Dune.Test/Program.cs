@@ -6,45 +6,23 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.Loader;
 using System.Text;
 using Dune;
+using Dune.Attributes;
 using Mono.Cecil;
 
-// DuneSandboxRules rules = new(false);
-
-// foreach (Type type in typeof(int).Assembly.GetTypes()) {
-//     DuneTypeDefinition typeDef = DuneTypeDefinition.FromType(type);
-
-//     rules.AllowType(typeDef.Signature);
-
-//     foreach (DuneMethodDefinition method in typeDef.Methods) rules.AllowMethod(method.Signature);
-//     foreach (DuneFieldDefinition field in typeDef.Fields) rules.AllowField(field.Signature);
-// }
-
-
 // AssemblyDefinition nativeAssembly = DuneAssembly.FromAssembly(typeof(int).Assembly).LoadCecil(null);
-// DuneCecilContext ctx = new();
 
-// foreach (TypeDefinition type in nativeAssembly.Modules.SelectMany(module => module.Types)) {
-//     DuneTypeDefinition typeDef = DuneTypeDefinition.FromTypeDefinition(type, ctx);
+DuneSandboxRules rules = new(false);
 
-//     rules.AllowType(typeDef.Signature);
+rules.AllowAnnotatedAssembly(Assembly.GetExecutingAssembly());
 
-//     foreach (DuneMethodDefinition method in typeDef.Methods) rules.AllowMethod(method.Signature);
-//     foreach (DuneFieldDefinition field in typeDef.Fields) rules.AllowField(field.Signature);
+// Console.WriteLine(DuneSandboxRules.Stringify(rules));
 
-//     foreach (DuneEventDefinition @event in typeDef.Events) {
-//         Console.WriteLine(@event.Signature);
-//     }
-// }
+// DuneSandboxRules rules = new();
 
-DuneScriptConfig config = new();
-DuneAssemblyEnvironment env = new();
-IDuneScriptReferenceResolver referenceResolver = new ReferenceResolver();
-
-DuneSandboxRules rules = new();
-
-rules.AllowMethod(DuneMethodSignature.FromDelegate((Action<string>)Console.WriteLine));
+// rules.AllowMethod((Action<string>)Console.WriteLine);
 
 byte[] ruleBytes = DuneSandboxRules.Serialize(rules);
 File.WriteAllBytes("rules.dune", ruleBytes);
@@ -54,28 +32,32 @@ DuneSandboxRules readRules = DuneSandboxRules.Deserialize(ruleBytes);
 if (!rules.IsEquivalentTo(readRules))
     throw new Exception("Read rules not equivalent.");
 
-// Console.WriteLine(DuneSandboxRules.Stringify(readRules));
+Console.WriteLine(DuneSandboxRules.Stringify(readRules));
 
-rules = readRules;
+// rules = readRules;
 
-string path = "../Test.csx";
-string source = File.ReadAllText(path);
+// DuneScriptConfig config = new();
+// DuneAssemblyProvider env = new DuneAssemblyEnvironment();
+// IDuneScriptReferenceResolver referenceResolver = new ReferenceResolver();
 
-DuneCompilationResult result = DuneScriptCompiler.Compile(
-    config, env, referenceResolver, rules,
-    source, path
-);
+// string path = "../Test.csx";
+// string source = File.ReadAllText(path);
 
-if (result.HasDiagnostics) {
+// DuneCompilationResult result = DuneScriptCompiler.Compile(
+//     config, env, referenceResolver, rules,
+//     source, path
+// );
 
-    foreach (DuneDiagnostic diagnostic in result.Diagnostics) {
-        diagnostic.PrintToConsole();
-    }
-}
+// if (result.HasDiagnostics) {
 
-if (result.Success) {
-    result.WriteToFile("Out.dll");
-}
+//     foreach (DuneDiagnostic diagnostic in result.Diagnostics) {
+//         diagnostic.PrintToConsole();
+//     }
+// }
+
+// if (result.Success) {
+//     result.WriteToFile("Out.dll");
+// }
 
 [AttributeUsage(AttributeTargets.Class)]
 public sealed class MyTestAttribute : Attribute {
@@ -83,13 +65,22 @@ public sealed class MyTestAttribute : Attribute {
     public MyTestAttribute(Type type) { }
 }
 
-namespace MyNamespace {
-    [MyTest(typeof(List<>))]
-    public class MyType {
+[DuneAllow]
+public class MyType {
 
-        public class MyInnerType {
+    [DuneAllow]
+    public void AllowedMethod() { }
 
-        }
+    public void NotAllowedMethod() { }
+
+    [DuneAllow(isRecursive: true)]
+    public class MyInnerType {
+
+        public void RecursivelyAllowed() { }
+
+        [DuneDeny]
+        public void ExplicitlyDenies() { }
+
     }
 }
 

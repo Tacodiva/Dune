@@ -20,7 +20,7 @@ public sealed class DunePropertyReference : DuneMemberReference<DunePropertySign
         InternalUtils.ThrowIfArgumentNullOrWhitespace(propertyName);
 
         return FromPropertyInfo(
-            type.GetProperty(propertyName, DuneReflectionContext.EverythingFlags)
+            type.GetProperty(propertyName, DuneReflectionContext.EverythingWithinFlags)
                 ?? throw new ArgumentException($"No property '{propertyName}' found on type {type}."),
             ctx);
     }

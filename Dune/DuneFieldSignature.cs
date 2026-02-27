@@ -16,7 +16,7 @@ public sealed class DuneFieldSignature : DuneMemberSignature, IEquatable<DuneFie
 
     public static DuneFieldSignature FromType(Type type, string fieldName, DuneReflectionContext? ctx = null)
         => FromFieldInfo(
-            type.GetField(fieldName, DuneReflectionContext.EverythingFlags)
+            type.GetField(fieldName, DuneReflectionContext.EverythingWithinFlags)
                 ?? throw new ArgumentException($"No field '{fieldName}' found on type {type}."),
             ctx);
 
@@ -31,7 +31,7 @@ public sealed class DuneFieldSignature : DuneMemberSignature, IEquatable<DuneFie
 
         if (declaringType.IsGenericType && !declaringType.IsGenericTypeDefinition) {
             declaringType = declaringType.GetGenericTypeDefinition();
-            fieldInfo = declaringType.GetField(fieldInfo.Name, DuneReflectionContext.EverythingFlags)!;
+            fieldInfo = declaringType.GetField(fieldInfo.Name, DuneReflectionContext.EverythingWithinFlags)!;
             InternalUtils.Assert(fieldInfo != null, "Field not found on generic type definition.");
         }
 
@@ -100,6 +100,31 @@ public sealed class DuneFieldSignature : DuneMemberSignature, IEquatable<DuneFie
         fieldFormat.AppendAssemblySuffix(this, sb);
 
         return sb.ToString();
+    }
+
+    public bool Matches(FieldInfo? field, DuneReflectionContext? ctx = null) {
+        if (field is null) return false;
+        if (field.Name != Name) return false;
+        if (!DeclaringType.Matches(field.DeclaringType, ctx)) return false;
+        if (!DuneTypeReference.FromType(field.FieldType, ctx).Matches(Type, ctx)) return false;
+        return true;
+    }
+
+    public bool Matches(CecilFieldDefinition? field, DuneCecilContext? ctx = null) {
+        if (field is null) return false;
+        if (field.Name != Name) return false;
+        if (!DeclaringType.Matches(field.DeclaringType, ctx)) return false;
+        if (!DuneTypeReference.FromCecilReference(field.FieldType, ctx).Matches(Type, ctx)) return false;
+        return true;
+    }
+
+    public bool Matches(DuneFieldSignature? field, DuneContext? ctx = null) {
+        if (ReferenceEquals(this, field)) return true;
+        if (field is null) return false;
+        if (field.Name != Name) return false;
+        if (!DeclaringType.Matches(field.DeclaringType, ctx)) return false;
+        if (!field.Type.Matches(Type, ctx)) return false;
+        return true;
     }
 
     public override bool Equals(object? obj) => Equals(obj as DuneFieldSignature);

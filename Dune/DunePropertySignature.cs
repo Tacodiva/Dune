@@ -17,7 +17,7 @@ public sealed class DunePropertySignature : DuneMemberSignature, IEquatable<Dune
 
     public static DunePropertySignature FromType(Type type, string propertyName, DuneReflectionContext? ctx = null)
         => FromPropertyInfo(
-            type.GetProperty(propertyName, DuneReflectionContext.EverythingFlags)
+            type.GetProperty(propertyName, DuneReflectionContext.EverythingWithinFlags)
                 ?? throw new ArgumentException($"No property '{propertyName}' found on type {type}."),
             ctx);
 
@@ -31,7 +31,7 @@ public sealed class DunePropertySignature : DuneMemberSignature, IEquatable<Dune
 
         if (declaringType.IsGenericType && !declaringType.IsGenericTypeDefinition) {
             declaringType = declaringType.GetGenericTypeDefinition();
-            propertyInfo = declaringType.GetProperty(propertyInfo.Name, DuneReflectionContext.EverythingFlags)!;
+            propertyInfo = declaringType.GetProperty(propertyInfo.Name, DuneReflectionContext.EverythingWithinFlags)!;
             InternalUtils.Assert(propertyInfo != null, "Property not found on generic type definition.");
         }
 
@@ -112,6 +112,66 @@ public sealed class DunePropertySignature : DuneMemberSignature, IEquatable<Dune
         propertyFormat.AppendAssemblySuffix(this, sb);
 
         return sb.ToString();
+    }
+
+    public bool Matches(PropertyInfo? property, DuneReflectionContext? ctx = null) {
+        if (property is null) return false;
+        if (property.Name != Name) return false;
+        if (!DeclaringType.Matches(property.DeclaringType, ctx)) return false;
+
+        if (GetMethod == null) {
+            if (property.GetMethod != null) return false;
+        } else {
+            if (!GetMethod.Matches(property.GetMethod, ctx)) return false;
+        }
+
+        if (SetMethod == null) {
+            if (property.SetMethod != null) return false;
+        } else {
+            if (!SetMethod.Matches(property.SetMethod, ctx)) return false;
+        }
+
+        return true;
+    }
+
+    public bool Matches(CecilPropertyDefinition? property, DuneCecilContext? ctx = null) {
+        if (property is null) return false;
+        if (property.Name != Name) return false;
+        if (!DeclaringType.Matches(property.DeclaringType, ctx)) return false;
+
+        if (GetMethod == null) {
+            if (property.GetMethod != null) return false;
+        } else {
+            if (!GetMethod.Matches(property.GetMethod, ctx)) return false;
+        }
+
+        if (SetMethod == null) {
+            if (property.SetMethod != null) return false;
+        } else {
+            if (!SetMethod.Matches(property.SetMethod, ctx)) return false;
+        }
+        return true;
+    }
+
+    public bool Matches(DunePropertySignature? property, DuneContext? ctx = null) {
+        if (ReferenceEquals(this, property)) return true;
+        if (property is null) return false;
+        if (property.Name != Name) return false;
+        if (!DeclaringType.Matches(property.DeclaringType, ctx)) return false;
+
+        if (GetMethod == null) {
+            if (property.GetMethod != null) return false;
+        } else {
+            if (!GetMethod.Matches(property.GetMethod, ctx)) return false;
+        }
+
+        if (SetMethod == null) {
+            if (property.SetMethod != null) return false;
+        } else {
+            if (!SetMethod.Matches(property.SetMethod, ctx)) return false;
+        }
+
+        return true;
     }
 
     public override bool Equals(object? obj) => Equals(obj as DunePropertySignature);

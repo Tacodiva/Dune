@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Reflection.Metadata;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Mono.Cecil;
@@ -108,7 +109,7 @@ public sealed class DuneTypeSignature : IDuneType, IDuneMemberSignature, IDuneGe
     public bool HasGenericParameters => !GenericParameterNames.IsEmpty;
     public int GenericParameterCount => GenericParameterNames.Length;
 
-
+    // TODO This should be better. Right now it depends on the void being from the exact same version
     public bool IsVoid => this == Void;
 
     IDuneType? IDuneMember.DeclaringType => DeclaringType;
@@ -227,19 +228,75 @@ public sealed class DuneTypeSignature : IDuneType, IDuneMemberSignature, IDuneGe
         return sb.Append(string.Join(", ", GenericParameterNames));
     }
 
+    public bool Matches(Type? type, DuneReflectionContext? ctx = null) {
+        if (type is null) return IsVoid;
+
+        if (type.Name != RawName) return false;
+        if (type.Namespace != Namespace) return false;
+        if (type.GenericTypeArguments.Length != GenericParameterCount) return false;
+        if (!Assembly.Matches(type.Assembly, ctx)) return false;
+
+        if (DeclaringType == null) {
+            if (type.DeclaringType != null) return false;
+        } else {
+            if (!DeclaringType.Matches(type.DeclaringType, ctx))
+                return false;
+        }
+
+        return true;
+    }
+
+    public bool Matches(CecilTypeReference? type, DuneCecilContext? ctx = null) {
+        if (type is null) return IsVoid;
+
+        if (type.Name != RawName) return false;
+        if (type.GenericParameters.Count != GenericParameterCount) return false;
+
+        string? signatureNamespace = HasDeclaringType ? Namespace : null;
+        string? definitionNamespace = string.IsNullOrWhiteSpace(type.Namespace) ? null : type.Namespace;
+
+        if (signatureNamespace != definitionNamespace) return false;
+        if (!Assembly.Matches(type.Module.Assembly, ctx)) return false;
+
+        if (DeclaringType == null) {
+            if (type.DeclaringType != null) return false;
+        } else {
+            if (!DeclaringType.Matches(type.DeclaringType, ctx))
+                return false;
+        }
+
+        return true;
+    }
+
+    public bool Matches(DuneTypeSignature? type, DuneContext? ctx = null) {
+        if (ReferenceEquals(this, type)) return true;
+        if (type is null) return IsVoid;
+
+        if (type.RawName != RawName) return false;
+        if (type.GenericParameterCount != GenericParameterCount) return false;
+        if (type.Namespace != Namespace) return false;
+        if (!type.Assembly.Matches(Assembly, ctx)) return false;
+
+        if (DeclaringType == null) {
+            if (type.DeclaringType != null) return false;
+        } else {
+            if (!DeclaringType.Matches(type.DeclaringType, ctx))
+                return false;
+        }
+
+        return true;
+    }
+
     public override bool Equals(object? obj) => Equals(obj as DuneTypeSignature);
     public bool Equals(IDuneSymbol? other) => Equals(other as DuneTypeSignature);
     public bool Equals(DuneTypeSignature? other) {
         if (ReferenceEquals(this, other)) return true;
         if (other is null) return false;
-
-        if (RawName != other.RawName) return false;
-        if (Namespace != other.Namespace) return false;
-        if (Assembly != other.Assembly) return false;
-        if (GenericParameterCount != other.GenericParameterCount) return false;
-
-        if (DeclaringType != other.DeclaringType) return false;
-
+        if (other.RawName != RawName) return false;
+        if (other.Namespace != Namespace) return false;
+        if (other.Assembly != Assembly) return false;
+        if (other.DeclaringType != DeclaringType) return false;
+        if (!other.GenericParameterNames.SequenceEqual(GenericParameterNames)) return false;
         return true;
     }
 

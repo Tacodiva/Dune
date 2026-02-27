@@ -15,7 +15,7 @@ partial class DuneSandboxRules {
         DuneSandboxReflectionRuleBuilder AllowType(Type type) {
             DuneSandboxReflectionRuleBuilder builder = rules.AllowType(type);
 
-            if (type.GetMethod("ToString", []) != null)
+            if (type.GetMethod("ToString", DuneReflectionContext.EverythingPublicWithinFlags, []) != null)
                 builder.AllowMethod(nameof(ToString), []);
 
             if (type.GetConstructor([]) != null)

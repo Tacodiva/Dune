@@ -4,8 +4,8 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 
 namespace Dune;
-public sealed class DuneRoslynContext {
 
+public sealed class DuneRoslynContext : DuneContext {
     private Dictionary<AssemblyIdentity, DuneAssemblyReference>? _assemblyReferences = null;
     private Dictionary<INamedTypeSymbol, DuneTypeSignature>? _typeSignatures = null;
     private Dictionary<(ITypeSymbol Type, bool IsRef), DuneTypeReference>? _typeReferences = null;

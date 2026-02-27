@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using Mono.Cecil;
 
 namespace Dune;
-public sealed class DuneCecilContext {
+public sealed class DuneCecilContext : DuneContext {
 
     private Dictionary<AssemblyNameReference, DuneAssemblyReference>? _assemblyReferences = null;
     private Dictionary<CecilTypeDefinition, DuneTypeSignature>? _typeSignatures = null;

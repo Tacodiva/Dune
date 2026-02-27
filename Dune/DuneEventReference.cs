@@ -21,7 +21,7 @@ public sealed class DuneEventReference : DuneMemberReference<DuneEventSignature>
         InternalUtils.ThrowIfArgumentNullOrWhitespace(eventName);
 
         return FromEventInfo(
-           type.GetEvent(eventName, DuneReflectionContext.EverythingFlags)
+           type.GetEvent(eventName, DuneReflectionContext.EverythingWithinFlags)
                ?? throw new ArgumentException($"No event '{eventName}' found on type {type}."),
            ctx);
     }
